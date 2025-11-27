@@ -3,3 +3,6 @@
 node_modules
 dist
 newsdash.code-workspace
+.DS_Store
+
+src/components/GeminiNewsSearch.tsx

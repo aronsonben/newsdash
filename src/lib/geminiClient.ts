@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { hasReachedDailyLimit, incrementUsage, isDevelopment } from './usageTracker';
 
 // Environment variables for Gemini API
 const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)
@@ -71,6 +72,17 @@ export type GeminiGenerateResponse = {
   raw?: any;
 };
 
+export type GeminiStreamChunk = {
+  text: string;
+  isComplete: boolean;
+  groundingMetadata?: GroundingMetadata;
+};
+
+export type GeminiStreamResponse = {
+  stream: AsyncIterableIterator<GeminiStreamChunk>;
+  getFullResponse: () => Promise<GeminiGenerateResponse>;
+};
+
 function addCitations(text: string, groundingMetadata?: GroundingMetadata): string {
     if (!groundingMetadata?.groundingSupports || !groundingMetadata?.groundingChunks) {
         return text;
@@ -120,6 +132,16 @@ export async function generateWithGemini(req: GeminiGenerateRequest): Promise<Ge
     };
   }
 
+  // Check daily usage limit (only in production)
+  if (hasReachedDailyLimit()) {
+    const errorText = `Daily API limit reached. You can make 20 requests per day. Please try again tomorrow.`;
+    return {
+      text: errorText,
+      textWithCitations: errorText,
+      searchQueries: []
+    };
+  }
+
   const ai = new GoogleGenAI({apiKey: apiKey});
   const groundingTool = {
     googleSearch: {},
@@ -160,6 +182,9 @@ export async function generateWithGemini(req: GeminiGenerateRequest): Promise<Ge
     // Add citations to the text
     const textWithCitations = addCitations(text, groundingMetadata);
 
+    // Increment usage counter after successful API call
+    incrementUsage();
+
     console.log('Grounding metadata extracted:', {
       chunksCount: groundingChunks.length,
       supportsCount: groundingSupports.length,
@@ -184,6 +209,152 @@ export async function generateWithGemini(req: GeminiGenerateRequest): Promise<Ge
       text: errorText,
       textWithCitations: errorText,
       searchQueries: []
+    };
+  }
+}
+
+export async function generateStreamWithGemini(req: GeminiGenerateRequest): Promise<GeminiStreamResponse> {
+  if (!isGeminiConfigured()) {
+    const errorText = `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`;
+    const errorResponse: GeminiGenerateResponse = {
+      text: errorText,
+      textWithCitations: errorText,
+      searchQueries: []
+    };
+    
+    return {
+      stream: (async function* () {
+        yield { text: errorText, isComplete: true };
+      })(),
+      getFullResponse: async () => errorResponse
+    };
+  }
+
+  // Check daily usage limit (only in production)
+  if (hasReachedDailyLimit()) {
+    const errorText = `Daily API limit reached. You can make 20 requests per day. Please try again tomorrow.`;
+    const errorResponse: GeminiGenerateResponse = {
+      text: errorText,
+      textWithCitations: errorText,
+      searchQueries: []
+    };
+    
+    return {
+      stream: (async function* () {
+        yield { text: errorText, isComplete: true };
+      })(),
+      getFullResponse: async () => errorResponse
+    };
+  }
+
+  const ai = new GoogleGenAI({apiKey: apiKey});
+  const groundingTool = {
+    googleSearch: {},
+  };
+  const config = {
+    tools: [groundingTool],
+  };
+
+  try {
+    // Make streaming call to Gemini API with Grounding with Google Search
+    const response = await ai.models.generateContentStream({
+      model: "gemini-2.5-flash",
+      contents: req.prompt,
+      config,
+    });
+
+    let fullText = '';
+    let finalGroundingMetadata: GroundingMetadata | undefined;
+
+    const stream = async function* () {
+      try {
+        for await (const chunk of response) {
+          const chunkText = chunk.text || '';
+          fullText += chunkText;
+          
+          // Store grounding metadata from the last chunk (it's usually in the final chunk)
+          if (chunk.candidates?.[0]?.groundingMetadata) {
+            finalGroundingMetadata = chunk.candidates[0].groundingMetadata;
+          }
+
+          yield {
+            text: chunkText,
+            isComplete: false,
+            groundingMetadata: chunk.candidates?.[0]?.groundingMetadata
+          } as GeminiStreamChunk;
+        }
+
+        // Final chunk to indicate completion
+        yield {
+          text: '',
+          isComplete: true,
+          groundingMetadata: finalGroundingMetadata
+        } as GeminiStreamChunk;
+      } catch (error) {
+        console.error('Gemini streaming error:', error);
+        const errorText = `Error during streaming: ${error instanceof Error ? error.message : String(error)}`;
+        yield {
+          text: errorText,
+          isComplete: true
+        } as GeminiStreamChunk;
+      }
+    };
+
+    const getFullResponse = async (): Promise<GeminiGenerateResponse> => {
+      // Wait for the stream to complete
+      for await (const chunk of stream()) {
+        if (chunk.isComplete) break;
+      }
+
+      // Extract grounding metadata components
+      const groundingSupports = finalGroundingMetadata?.groundingSupports ?? [];
+      const groundingChunks = finalGroundingMetadata?.groundingChunks ?? [];
+      const webSearchQueries = finalGroundingMetadata?.webSearchQueries ?? [];
+      const searchEntryPoint = finalGroundingMetadata?.searchEntryPoint?.renderedContent ?? undefined;
+
+      // Add citations to the full text
+      const textWithCitations = addCitations(fullText, finalGroundingMetadata);
+
+      // Increment usage counter after successful streaming API call
+      incrementUsage();
+
+      console.log('Streaming grounding metadata extracted:', {
+        chunksCount: groundingChunks.length,
+        supportsCount: groundingSupports.length,
+        queriesCount: webSearchQueries.length,
+        hasSearchEntryPoint: !!searchEntryPoint
+      });
+
+      return {
+        text: fullText,
+        textWithCitations,
+        searchQueries: webSearchQueries,
+        groundingMetadata: finalGroundingMetadata,
+        groundingChunks,
+        groundingSupports,
+        searchEntryPoint,
+        raw: response
+      };
+    };
+
+    return {
+      stream: stream(),
+      getFullResponse
+    };
+  } catch (error) {
+    console.error('Gemini streaming API error:', error);
+    const errorText = `Error generating streaming content: ${error instanceof Error ? error.message : String(error)}`;
+    const errorResponse: GeminiGenerateResponse = {
+      text: errorText,
+      textWithCitations: errorText,
+      searchQueries: []
+    };
+
+    return {
+      stream: (async function* () {
+        yield { text: errorText, isComplete: true };
+      })(),
+      getFullResponse: async () => errorResponse
     };
   }
 }

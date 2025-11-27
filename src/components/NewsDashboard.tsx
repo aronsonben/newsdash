@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import { GenerateResponse } from '../lib/apiClient';
 
 export type NewsItem = {
@@ -38,7 +39,7 @@ const dummyItems: NewsItem[] = [
   }
 ];
 
-export default function NewsDashboard({ title, data }: { title?: string; data: GenerateResponse | null }) {
+export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached }: { title?: string; data: GenerateResponse | null; streamingText?: string; isStreaming?: boolean; isCached?: boolean }) {
   const items: NewsItem[] = React.useMemo(() => {
     if (!data) return [];
     if (!data.groundingMetadata?.groundingChunks) return [];
@@ -56,44 +57,274 @@ export default function NewsDashboard({ title, data }: { title?: string; data: G
     });
   }, [data]);
 
+  // Custom ReactMarkdown components for better styling
+  const markdownComponents: Components = {
+    h1: ({ children }) => (
+      <h1 className="markdown-content" style={{ color: 'rgb(var(--text-primary))' }}>{children}</h1>
+    ),
+    h2: ({ children }) => (
+      <h2 className="markdown-content" style={{ color: 'rgb(var(--text-primary))' }}>{children}</h2>
+    ),
+    h3: ({ children }) => (
+      <h3 className="markdown-content" style={{ color: 'rgb(var(--text-primary))' }}>{children}</h3>
+    ),
+    h4: ({ children }) => (
+      <h4 className="markdown-content" style={{ color: 'rgb(var(--text-secondary))' }}>{children}</h4>
+    ),
+    h5: ({ children }) => (
+      <h5 className="markdown-content" style={{ color: 'rgb(var(--text-secondary))' }}>{children}</h5>
+    ),
+    h6: ({ children }) => (
+      <h6 className="markdown-content" style={{ color: 'rgb(var(--text-muted))' }}>{children}</h6>
+    ),
+    a: ({ href, children }) => (
+      <a 
+        href={href} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        style={{ color: 'rgb(var(--accent))' }}
+      >
+        {children}
+      </a>
+    ),
+    code: ({ children, className }) => {
+      const isInline = !className;
+      return (
+        <code 
+          className={className}
+          style={{
+            backgroundColor: isInline ? 'rgb(var(--bg-secondary))' : 'transparent',
+            color: 'rgb(var(--text-primary))',
+            fontSize: isInline ? '0.875rem' : '0.85rem'
+          }}
+        >
+          {children}
+        </code>
+      );
+    },
+    blockquote: ({ children }) => (
+      <blockquote style={{ 
+        borderLeftColor: 'rgb(var(--accent))',
+        backgroundColor: 'rgb(var(--bg-secondary) / 0.5)',
+        color: 'rgb(var(--text-secondary))'
+      }}>
+        {children}
+      </blockquote>
+    ),
+    table: ({ children }) => (
+      <div style={{ overflowX: 'auto', margin: '1rem 0' }}>
+        <table style={{ borderColor: 'rgb(var(--border))' }}>
+          {children}
+        </table>
+      </div>
+    ),
+    th: ({ children }) => (
+      <th style={{ 
+        backgroundColor: 'rgb(var(--bg-secondary))',
+        color: 'rgb(var(--text-primary))',
+        borderColor: 'rgb(var(--border))'
+      }}>
+        {children}
+      </th>
+    ),
+    td: ({ children }) => (
+      <td style={{ 
+        color: 'rgb(var(--text-secondary))',
+        borderColor: 'rgb(var(--border))'
+      }}>
+        {children}
+      </td>
+    )
+  };
+
   return (
-    <section className="mt-4">
-      <div className="font-semibold mb-2 text-[#f0f0f0]">
+    <section 
+      className="mt-6 p-6 rounded-xl border"
+      style={{
+        backgroundColor: 'rgb(var(--dashboard-bg))',
+        borderColor: 'rgb(var(--border))'
+      }}
+    >
+      <div 
+        className="font-bold mb-4 font-grotesk text-xl flex items-center gap-2"
+        style={{ color: 'rgb(var(--text-primary))' }}
+      >
+        <span 
+          className="w-2 h-2 rounded-full"
+          style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
+        ></span>
         {title ? `${title} — News Dashboard` : 'News Dashboard'}
+        {isCached && (
+          <span 
+            className="text-xs px-2 py-1 rounded-full font-medium"
+            style={{ 
+              backgroundColor: 'rgb(var(--bg-secondary))',
+              color: 'rgb(var(--text-muted))'
+            }}
+            title="This data was loaded from cache"
+          >
+            CACHED
+          </span>
+        )}
       </div>
 
-      {data?.text && (
-        <div className="mb-4 p-4 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] text-[#d0d0d0]">
-          <ReactMarkdown>{data.text}</ReactMarkdown>
+      {(streamingText || data?.text) && (
+        <div 
+          className="mb-6 p-5 rounded-xl border markdown-content shadow-sm"
+          style={{
+            backgroundColor: 'rgb(var(--bg-primary))',
+            borderColor: 'rgb(var(--border))',
+            color: 'rgb(var(--text-secondary))'
+          }}
+        >
+          {isStreaming ? (
+            <div className="relative">
+              <ReactMarkdown 
+                components={markdownComponents}
+                skipHtml={false}
+                urlTransform={(url) => url}
+              >
+                {streamingText || ''}
+              </ReactMarkdown>
+              <span 
+                className="inline-block w-2 h-5 ml-1 animate-pulse"
+                style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
+              ></span>
+            </div>
+          ) : (
+            <ReactMarkdown 
+              components={markdownComponents}
+              skipHtml={false}
+              urlTransform={(url) => url}
+            >
+              {data?.textWithCitations || data?.text || ''}
+            </ReactMarkdown>
+          )}
         </div>
       )}
 
       {items.length === 0 ? (
-        <div className="p-8 text-center text-gray-500 text-lg italic">Select a prompt to begin.</div>
+        <div 
+          className="p-12 text-center text-lg italic font-grotesk rounded-xl border"
+          style={{
+            backgroundColor: 'rgb(var(--bg-primary))',
+            borderColor: 'rgb(var(--border))',
+            color: 'rgb(var(--text-muted))'
+          }}
+        >
+          Select a prompt to begin.
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-[#2a2a2a] bg-[#1a1a1a] border-collapse">
-            <thead className="bg-[#141414]">
+        <div 
+          className="overflow-x-auto rounded-xl border"
+          style={{
+            backgroundColor: 'rgb(var(--bg-primary))',
+            borderColor: 'rgb(var(--border))'
+          }}
+        >
+          <table className="min-w-full border-collapse">
+            <thead 
+              style={{
+                backgroundColor: 'rgb(var(--bg-secondary))'
+              }}
+            >
               <tr>
-                <th className="text-left font-semibold text-sm text-[#e0e0e0] p-2 border-b border-[#2a2a2a]">Source</th>
-                <th className="text-left font-semibold text-sm text-[#e0e0e0] p-2 border-b border-[#2a2a2a]">Date</th>
-                <th className="text-left font-semibold text-sm text-[#e0e0e0] p-2 border-b border-[#2a2a2a]">Update</th>
-                <th className="text-left font-semibold text-sm text-[#e0e0e0] p-2 border-b border-[#2a2a2a]">Impact</th>
-                <th className="text-left font-semibold text-sm text-[#e0e0e0] p-2 border-b border-[#2a2a2a]">Link</th>
-                <th className="text-left font-semibold text-sm text-[#e0e0e0] p-2 border-b border-[#2a2a2a]">Action</th>
+                {['Source', 'Date', 'Update', 'Impact', 'Link', 'Action'].map((header) => (
+                  <th 
+                    key={header}
+                    className="text-left font-semibold text-sm p-4 border-b font-grotesk uppercase tracking-wide"
+                    style={{
+                      color: 'rgb(var(--dashboard-accent))',
+                      borderColor: 'rgb(var(--border))'
+                    }}
+                  >
+                    {header}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {items.map((item, idx) => (
-                <tr key={idx} className="align-top">
-                  <td className="text-sm text-[#d0d0d0] p-3 border-b border-[#252525]">{item.source}</td>
-                  <td className="text-sm text-[#d0d0d0] p-3 border-b border-[#252525]">{item.date}</td>
-                  <td className="text-sm text-[#d0d0d0] p-3 border-b border-[#252525]">{item.update}</td>
-                  <td className="text-sm text-[#d0d0d0] p-3 border-b border-[#252525]">{item.impact}</td>
-                  <td className="text-sm text-[#d0d0d0] p-3 border-b border-[#252525]">
-                    <a href={item.link} target="_blank" rel="noreferrer" className="text-sky-400">View</a>
+                <tr 
+                  key={idx} 
+                  className="align-top transition-colors duration-150"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgb(var(--bg-secondary))';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <td 
+                    className="text-sm p-4 border-b"
+                    style={{
+                      color: 'rgb(var(--text-secondary))',
+                      borderColor: 'rgb(var(--border) / 0.5)'
+                    }}
+                  >
+                    {item.source}
                   </td>
-                  <td className="text-sm text-[#d0d0d0] p-3 border-b border-[#252525]">{item.action}</td>
+                  <td 
+                    className="text-sm p-4 border-b"
+                    style={{
+                      color: 'rgb(var(--text-secondary))',
+                      borderColor: 'rgb(var(--border) / 0.5)'
+                    }}
+                  >
+                    {item.date}
+                  </td>
+                  <td 
+                    className="text-sm p-4 border-b"
+                    style={{
+                      color: 'rgb(var(--text-secondary))',
+                      borderColor: 'rgb(var(--border) / 0.5)'
+                    }}
+                  >
+                    {item.update}
+                  </td>
+                  <td 
+                    className="text-sm p-4 border-b"
+                    style={{
+                      color: 'rgb(var(--text-secondary))',
+                      borderColor: 'rgb(var(--border) / 0.5)'
+                    }}
+                  >
+                    {item.impact}
+                  </td>
+                  <td 
+                    className="text-sm p-4 border-b"
+                    style={{
+                      color: 'rgb(var(--text-secondary))',
+                      borderColor: 'rgb(var(--border) / 0.5)'
+                    }}
+                  >
+                    <a 
+                      href={item.link} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="inline-flex items-center px-3 py-1 text-sm text-white rounded-md transition-colors duration-200 font-medium"
+                      style={{
+                        backgroundColor: 'rgb(var(--button-primary))'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))';
+                      }}
+                    >
+                      View
+                    </a>
+                  </td>
+                  <td 
+                    className="text-sm p-4 border-b"
+                    style={{
+                      color: 'rgb(var(--text-secondary))',
+                      borderColor: 'rgb(var(--border) / 0.5)'
+                    }}
+                  >
+                    {item.action}
+                  </td>
                 </tr>
               ))}
             </tbody>

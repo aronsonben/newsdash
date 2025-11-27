@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiClient, GenerateResponse } from '../lib/apiClient';
-import { generateWithGemini, isGeminiConfigured, GeminiGenerateResponse } from '../lib/geminiClient';
+import { generateWithGemini, generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse } from '../lib/geminiClient';
+import { hasReachedDailyLimit, getUsageInfo } from '../lib/usageTracker';
+import { cacheManager } from '../lib/cacheManager';
 
 
 interface Message {
@@ -9,13 +11,13 @@ interface Message {
   content: string;
 }
 
-export default function ChatPanel({ preset, onResponse }: { preset?: string; onResponse?: (data: GeminiGenerateResponse) => void }) {
+export default function ChatPanel({ preset, onResponse, onStreamChunk }: { preset?: string; onResponse?: (data: GeminiGenerateResponse, fromCache?: boolean) => void; onStreamChunk?: (text: string, isComplete: boolean) => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading]);
+  const canSend = useMemo(() => input.trim().length > 0 && !loading && !hasReachedDailyLimit(), [input, loading]);
 
   useEffect(() => {
     setMessages([
@@ -36,59 +38,203 @@ export default function ChatPanel({ preset, onResponse }: { preset?: string; onR
   async function onSend() {
     if (!canSend) return;
     const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: input.trim() };
+    
     setMessages((prev: Message[]) => [...prev, userMessage]);
     setInput('');
     setLoading(true);
     setError(null);
-    // Send the request to the Gemini API service
+    
     try {
       if (!isGeminiConfigured()) {
-        return { 
-          text: `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`,
-          searchQueries: []
-        };
+        const errorText = `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`;
+        if (onStreamChunk) {
+          onStreamChunk(errorText, true);
+        }
+        return;
       }
-      const reply = await generateWithGemini({
+
+      // Check cache first
+      const cachedResponse = await cacheManager.getCached(userMessage.content);
+      if (cachedResponse) {
+        // Use cached response - simulate streaming for consistent UX
+        if (onStreamChunk) {
+          onStreamChunk(cachedResponse.textWithCitations, true);
+        }
+        if (onResponse) {
+          onResponse(cachedResponse, true); // true indicates from cache
+        }
+        return;
+      }
+      
+      // No cache hit - make API call with streaming
+      const streamResponse = await generateStreamWithGemini({
         prompt: userMessage.content,
-        temperature: 0.7,     // hardcoded default value for nnow
-        modelName: 'gemini-2.5-flash'   // just default to 2.5 flash for now
+        temperature: 0.7,
+        modelName: 'gemini-2.5-flash'
       });
       
+      let accumulatedText = '';
+      
+      // Process the stream chunks and send to NewsDashboard
+      for await (const chunk of streamResponse.stream) {
+        if (!chunk.isComplete && chunk.text) {
+          accumulatedText += chunk.text;
+          if (onStreamChunk) {
+            onStreamChunk(accumulatedText, false);
+          }
+        }
+      }
+      
+      // Get the full response with citations when streaming completes
+      const fullResponse = await streamResponse.getFullResponse();
+      
+      // Cache the response for future use
+      await cacheManager.setCached(userMessage.content, fullResponse);
+      
+      // Send final response to NewsDashboard
+      if (onStreamChunk) {
+        onStreamChunk(fullResponse.textWithCitations, true);
+      }
+      
       if (onResponse) {
-        onResponse(reply);
+        onResponse(fullResponse, false); // false indicates fresh from API
       }
     } catch (e: any) {
       setError(e?.message ?? 'Request failed');
+      if (onStreamChunk) {
+        onStreamChunk('Error generating response', true);
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const adjustTextareaHeight = React.useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const scrollHeight = textarea.scrollHeight;
+      const maxHeight = 200; // 200px max height
+      const minHeight = 44; // ~2.75rem
+      textarea.style.height = Math.min(Math.max(scrollHeight, minHeight), maxHeight) + 'px';
+      textarea.style.overflowY = scrollHeight > maxHeight ? 'scroll' : 'hidden';
+    }
+  }, []);
+
+  React.useEffect(() => {
+    adjustTextareaHeight();
+  }, [input, adjustTextareaHeight]);
+
   return (
-    <section className="grid gap-3">
-      <div className="grid gap-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-3">
+    <section 
+      className="grid gap-4 p-4 rounded-xl border"
+      style={{
+        backgroundColor: 'rgb(var(--chat-bg))',
+        borderColor: 'rgb(var(--border))'
+      }}
+    >
+      <div 
+        className="grid gap-3 border rounded-lg p-4"
+        style={{
+          backgroundColor: 'rgb(var(--bg-primary))',
+          borderColor: 'rgb(var(--border))'
+        }}
+      >
         {messages.map((m) => (
-          <div key={m.id} className="grid">
-            <span className="text-xs text-gray-400">{m.role.toUpperCase()}</span>
-            <span className="text-[#d0d0d0]">{m.content}</span>
+          <div key={m.id} className="grid gap-1">
+            <span 
+              className="text-xs font-medium uppercase tracking-wide"
+              style={{ color: 'rgb(var(--chat-accent))' }}
+            >
+              {m.role}
+            </span>
+            <span 
+              className="leading-relaxed"
+              style={{ color: 'rgb(var(--text-secondary))' }}
+            >
+              {m.content}
+            </span>
           </div>
         ))}
-        {error && <div className="text-red-500">{error}</div>}
+        {error && <div className="text-red-600 bg-red-50 dark:bg-red-950/50 p-3 rounded-lg border border-red-200 dark:border-red-800/50 text-sm">{error}</div>}
+        {(() => {
+          const usageInfo = getUsageInfo();
+          if (hasReachedDailyLimit()) {
+            return (
+              <div className="text-red-600 bg-red-50 dark:bg-red-950/50 p-3 rounded-lg border border-red-200 dark:border-red-800/50 text-sm">
+                <strong>Daily limit reached:</strong> You've used all 20 API calls for today. Please try again tomorrow.
+              </div>
+            );
+          } else if (usageInfo.remaining <= 3 && usageInfo.used > 0) {
+            return (
+              <div className="text-yellow-600 bg-yellow-50 dark:bg-yellow-950/50 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800/50 text-sm">
+                <strong>Warning:</strong> You have {usageInfo.remaining} API calls remaining today.
+              </div>
+            );
+          }
+          return null;
+        })()}
       </div>
 
-      <div className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
-          placeholder="Type a message..."
-          className="flex-1 px-3 py-2 rounded-md border border-[#2a2a2a] bg-[#1a1a1a] text-[#e0e0e0]"
-        />
+      <div className="flex gap-3 items-end">
+        <div className="flex-1">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+              setInput(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                onSend();
+              }
+            }}
+            placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+            className="w-full px-4 py-3 rounded-lg border resize-none focus:outline-none focus:ring-2 transition-all duration-200 leading-relaxed"
+            style={{
+              minHeight: '44px',
+              maxHeight: '200px',
+              overflowY: 'hidden',
+              backgroundColor: 'rgb(var(--bg-primary))',
+              borderColor: 'rgb(var(--border))',
+              color: 'rgb(var(--text-primary))',
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'rgb(var(--chat-accent))';
+              e.target.style.boxShadow = `0 0 0 2px rgb(var(--chat-accent) / 0.2)`;
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'rgb(var(--border))';
+              e.target.style.boxShadow = 'none';
+            }}
+          />
+        </div>
         <button
           onClick={onSend}
           disabled={!canSend}
-          className={`px-3 py-2 rounded-md text-white ${canSend ? 'bg-sky-600 cursor-pointer' : 'bg-sky-600/50 cursor-not-allowed'}`}
+          className="px-6 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 shadow-sm hover:shadow-md"
+          style={{
+            minHeight: '44px',
+            backgroundColor: canSend ? 'rgb(var(--button-primary))' : 'rgb(var(--button-primary-disabled))',
+            color: canSend ? 'white' : 'rgba(255, 255, 255, 0.7)',
+            cursor: canSend ? 'pointer' : 'not-allowed'
+          }}
+          onMouseEnter={(e) => {
+            if (canSend) {
+              e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (canSend) {
+              e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))';
+            }
+          }}
+          title={hasReachedDailyLimit() ? 'Daily API limit reached (20/20)' : loading ? 'Sending...' : 'Send message'}
         >
-          {loading ? 'Sending…' : 'Send'}
+          {loading ? 'Sending…' : hasReachedDailyLimit() ? 'Limit Reached' : 'Send'}
         </button>
       </div>
     </section>
