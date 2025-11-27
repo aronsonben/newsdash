@@ -1,0 +1,41 @@
+[
+  {
+    "name": "AI Innovation Daily Review",
+
+    "description": "Monitors major AI sources for breakthroughs, releases, and news in the past 72 hours. Returns a dashboard sorted by company, including impact and action suggestions.",
+
+    "prompt": "Monitor these AI sources daily: OpenAI Research, Anthropic News, Perplexity Hub, Meta AI, Google DeepMind, arXiv cs.AI, Hugging Face Blog. List new releases, research breakthroughs, or models from the past 72 hours, sorted by company. For each, give one-sentence impact, link, and recommended action. Dashboard output: Source | Date | Update | Impact | Link | Action."
+  },
+
+  {
+    "name": "Latest Climate Headlines Weekly",
+
+    "description": "Fetches the top recent stories from leading global and US climate, environment, and sustainability sources over the past week.",
+
+    "prompt": "List the latest major climate, environment, and sustainability news headlines from Grist, Inside Climate News, Guardian Climate, NYT Climate, Carbon Brief, and related leading sources for the past 7 days. Summarize each in 1-2 sentences with a link."
+  },
+
+  {
+    "name": "Massachusetts Climate News Weekly",
+
+    "description": "Fetches the top recent stories from leading global and US climate, environment, and sustainability sources over the past week.",
+
+    "prompt": "Tell me about the latest climate, environment, and sustainability news coming out of Massachusetts in the past week"
+  },
+
+  {
+    "name": "New England Climate News Recent",
+
+    "description": "Fetches the top recent stories from leading global and US climate, environment, and sustainability sources over the past week.",
+
+    "prompt": "Tell me about the latest climate, environment, and sustainability news coming out of New England in the past week."
+  },
+
+  {
+    "name": "Boston Climate News Monthly",
+
+    "description": "Fetches the top recent stories from leading global and US climate, environment, and sustainability sources over the past week.",
+
+    "prompt": "Tell me about the latest climate, environment, and sustainability news specifically related to the Boston, MA metro area within the past month."
+  }
+]

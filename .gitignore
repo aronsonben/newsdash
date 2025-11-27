@@ -1,0 +1,5 @@
+# Don't commit env 
+.env.local
+node_modules
+dist
+newsdash.code-workspace
