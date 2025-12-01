@@ -20,11 +20,6 @@ export function Sidebar({ onSelect }: { onSelect: (s: Shortcut) => void }) {
             onClick={() => onSelect(item)}
             title={item.description ?? item.prompt}
             className="text-left border theme-border rounded-lg p-3 cursor-pointer theme-bg-primary theme-text-primary hover:theme-bg-secondary hover:shadow-sm transition-all duration-200 group"
-            style={{
-              borderColor: 'rgb(var(--border))',
-              backgroundColor: 'rgb(var(--bg-primary))',
-              color: 'rgb(var(--text-primary))'
-            }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'rgb(var(--bg-secondary))';
               e.currentTarget.style.borderColor = 'rgb(var(--sidebar-accent))';
@@ -34,7 +29,7 @@ export function Sidebar({ onSelect }: { onSelect: (s: Shortcut) => void }) {
               e.currentTarget.style.borderColor = 'rgb(var(--border))';
             }}
           >
-            <div className="font-medium theme-text-primary font-grotesk group-hover:theme-sidebar-accent transition-colors">{item.name}</div>
+            <div className="font-medium font-grotesk group-hover:theme-sidebar-accent transition-colors">{item.name}</div>
             {item.description && (
               <div className="theme-text-muted text-xs mt-1 line-clamp-2">{item.description}</div>
             )}

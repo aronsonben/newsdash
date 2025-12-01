@@ -13,6 +13,8 @@ export default function App() {
   const [streamingText, setStreamingText] = React.useState<string>('');
   const [isStreaming, setIsStreaming] = React.useState<boolean>(false);
   const [isCached, setIsCached] = React.useState<boolean>(false);
+  const [cacheTimestamp, setCacheTimestamp] = React.useState<number | null>(null);
+  const chatPanelRef = React.useRef<{ runAgain: () => void } | null>(null);
   const [isDark, setIsDark] = React.useState(() => {
     // Check for saved theme or default to dark
     const saved = localStorage.getItem('theme');
@@ -22,7 +24,8 @@ export default function App() {
   React.useEffect(() => {
     // Apply theme to document
     if (isDark) {
-      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.setAttribute('data-theme', 'dark-earth');
+      // document.documentElement.setAttribute('data-theme', 'dark');     // old, simple dark theme
     } else {
       document.documentElement.removeAttribute('data-theme');
     }
@@ -44,6 +47,7 @@ export default function App() {
             setSelected({ name: s.name, prompt: s.prompt });
             setNewsData(null);
             setIsCached(false);
+            setCacheTimestamp(null);
           }}
         />
         <div className="flex-1 p-4 max-w-[960px] mx-auto">
@@ -53,10 +57,12 @@ export default function App() {
             </p>
           </section>
           <ChatPanel 
+            ref={chatPanelRef}
             preset={selected?.prompt} 
-            onResponse={(data, fromCache = false) => {
+            onResponse={(data, fromCache = false, timestamp) => {
               setNewsData(data);
               setIsCached(fromCache);
+              setCacheTimestamp(timestamp || null);
             }}
             onStreamChunk={(text: string, isComplete: boolean) => {
               setStreamingText(text);
@@ -67,7 +73,19 @@ export default function App() {
               }
             }}
           />
-          {selected && <NewsDashboard title={selected.name} data={newsData} streamingText={streamingText} isStreaming={isStreaming} isCached={isCached} />}
+          {selected && <NewsDashboard 
+            title={selected.name} 
+            data={newsData} 
+            streamingText={streamingText} 
+            isStreaming={isStreaming} 
+            isCached={isCached} 
+            cacheTimestamp={cacheTimestamp}
+            onRunAgain={() => {
+              if (chatPanelRef.current) {
+                chatPanelRef.current.runAgain();
+              }
+            }}
+          />}
           <Outlet />
         </div>
       </main>

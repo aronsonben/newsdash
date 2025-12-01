@@ -11,7 +11,7 @@ interface Message {
   content: string;
 }
 
-export default function ChatPanel({ preset, onResponse, onStreamChunk }: { preset?: string; onResponse?: (data: GeminiGenerateResponse, fromCache?: boolean) => void; onStreamChunk?: (text: string, isComplete: boolean) => void }) {
+const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; onResponse?: (data: GeminiGenerateResponse, fromCache?: boolean, timestamp?: number) => void; onStreamChunk?: (text: string, isComplete: boolean) => void }>(function ChatPanel({ preset, onResponse, onStreamChunk }, ref) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,12 +35,12 @@ export default function ChatPanel({ preset, onResponse, onStreamChunk }: { prese
     }
   }, [preset]);
 
-  async function onSend() {
+  async function onSend(forceRefresh = false) {
     if (!canSend) return;
     const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: input.trim() };
     
     setMessages((prev: Message[]) => [...prev, userMessage]);
-    setInput('');
+    // setInput('');
     setLoading(true);
     setError(null);
     
@@ -53,20 +53,22 @@ export default function ChatPanel({ preset, onResponse, onStreamChunk }: { prese
         return;
       }
 
-      // Check cache first
-      const cachedResponse = await cacheManager.getCached(userMessage.content);
-      if (cachedResponse) {
-        // Use cached response - simulate streaming for consistent UX
-        if (onStreamChunk) {
-          onStreamChunk(cachedResponse.textWithCitations, true);
+      // Check cache first (unless forcing refresh)
+      if (!forceRefresh) {
+        const cachedResponseWithTimestamp = await cacheManager.getCachedWithTimestamp(userMessage.content);
+        if (cachedResponseWithTimestamp) {
+          // Use cached response - simulate streaming for consistent UX
+          if (onStreamChunk) {
+            onStreamChunk(cachedResponseWithTimestamp.data.textWithCitations, true);
+          }
+          if (onResponse) {
+            onResponse(cachedResponseWithTimestamp.data, true, cachedResponseWithTimestamp.timestamp); // true indicates from cache
+          }
+          return;
         }
-        if (onResponse) {
-          onResponse(cachedResponse, true); // true indicates from cache
-        }
-        return;
       }
       
-      // No cache hit - make API call with streaming
+      // No cache hit or forced refresh - make API call with streaming
       const streamResponse = await generateStreamWithGemini({
         prompt: userMessage.content,
         temperature: 0.7,
@@ -109,6 +111,15 @@ export default function ChatPanel({ preset, onResponse, onStreamChunk }: { prese
     }
   }
 
+  // Expose runAgain method via ref
+  React.useImperativeHandle(ref, () => ({
+    runAgain: () => {
+      if (input.trim().length > 0) {
+        onSend(true); // Force refresh, skip cache
+      }
+    }
+  }));
+
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   const adjustTextareaHeight = React.useCallback(() => {
@@ -128,13 +139,8 @@ export default function ChatPanel({ preset, onResponse, onStreamChunk }: { prese
   }, [input, adjustTextareaHeight]);
 
   return (
-    <section 
-      className="grid gap-4 p-4 rounded-xl border"
-      style={{
-        backgroundColor: 'rgb(var(--chat-bg))',
-        borderColor: 'rgb(var(--border))'
-      }}
-    >
+    <section className="grid gap-4 p-4 rounded-xl theme-chat-bg border border-[rgb(var(--chat-accent))]">
+      {/* Removing Messaging Idea 
       <div 
         className="grid gap-3 border rounded-lg p-4"
         style={{
@@ -177,10 +183,18 @@ export default function ChatPanel({ preset, onResponse, onStreamChunk }: { prese
           return null;
         })()}
       </div>
-
-      <div className="flex gap-3 items-end">
+      */} 
+      <div className="flex flex-col gap-3 items-end">
         <div className="flex-1">
-          <textarea
+          {/* Pre-defined prompt header */}
+          <div>
+            {input ? 
+              (<p className="text-xl font-bold my-4 mx-2">{input}</p>) : 
+              (<p className="font-bold my-4 mx-2">Choose a prompt to get started.</p>)
+            }
+          </div>
+          {/* Prompt Input Textbox */}
+          {/* <textarea
             ref={textareaRef}
             value={input}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -210,14 +224,14 @@ export default function ChatPanel({ preset, onResponse, onStreamChunk }: { prese
               e.target.style.borderColor = 'rgb(var(--border))';
               e.target.style.boxShadow = 'none';
             }}
-          />
+          /> */}
         </div>
         <button
-          onClick={onSend}
+          onClick={() => onSend()}
           disabled={!canSend}
-          className="px-6 py-3 rounded-lg font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 shadow-sm hover:shadow-md"
+          className="px-6 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 shadow-sm hover:shadow-md"
           style={{
-            minHeight: '44px',
+            minHeight: '34px',
             backgroundColor: canSend ? 'rgb(var(--button-primary))' : 'rgb(var(--button-primary-disabled))',
             color: canSend ? 'white' : 'rgba(255, 255, 255, 0.7)',
             cursor: canSend ? 'pointer' : 'not-allowed'
@@ -239,4 +253,6 @@ export default function ChatPanel({ preset, onResponse, onStreamChunk }: { prese
       </div>
     </section>
   );
-}
+});
+
+export default ChatPanel;

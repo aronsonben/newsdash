@@ -72,6 +72,26 @@ class CacheManager {
     return cached.data;
   }
 
+  async getCachedWithTimestamp(prompt: string): Promise<{ data: GeminiGenerateResponse; timestamp: number } | null> {
+    const cache = this.getCache();
+    const promptHash = await this.hashPrompt(prompt);
+    const cached = cache[promptHash];
+
+    if (!cached) {
+      return null;
+    }
+
+    if (this.isExpired(cached.timestamp)) {
+      // Remove expired entry
+      delete cache[promptHash];
+      this.setCache(cache);
+      return null;
+    }
+
+    console.log('Cache hit for prompt:', prompt.substring(0, 50) + '...');
+    return { data: cached.data, timestamp: cached.timestamp };
+  }
+
   async setCached(prompt: string, response: GeminiGenerateResponse): Promise<void> {
     const cache = this.getCache();
     const promptHash = await this.hashPrompt(prompt);

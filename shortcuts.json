@@ -4,7 +4,9 @@
 
     "description": "Monitors major AI sources for breakthroughs, releases, and news in the past 72 hours. Returns a dashboard sorted by company, including impact and action suggestions.",
 
-    "prompt": "Monitor these AI sources daily: OpenAI Research, Anthropic News, Perplexity Hub, Meta AI, Google DeepMind, arXiv cs.AI, Hugging Face Blog. List new releases, research breakthroughs, or models from the past 72 hours, sorted by company. For each, give one-sentence impact, link, and recommended action. Dashboard output: Source | Date | Update | Impact | Link | Action."
+    "prompt": "Give me a summary of the latest and most important new releases, research breakthroughs, model developments, or business ventures related to AI within the past week.",
+
+    "instructions": "For each piece of news, give a one-stence impact summary, links to the story, and one-liner of key stakdholers. For sources you may use, but are not limited to, the following: OpenAI Research, Anthropic News, Perplexity Hub, Meta AI, Google DeepMind, arXiv cs.AI, Hugging Face Blog."
   },
 
   {

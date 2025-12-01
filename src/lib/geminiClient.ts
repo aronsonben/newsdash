@@ -25,8 +25,8 @@ export type GeminiGenerateRequest = {
 // TypeScript interfaces for Gemini API response structure
 interface GroundingChunk {
   web?: {
-    uri: string;
-    title: string;
+    uri?: string;
+    title?: string;
   };
 }
 
@@ -42,7 +42,7 @@ interface GroundingSupport {
 interface GroundingMetadata {
   webSearchQueries?: string[];
   searchEntryPoint?: {
-    renderedContent: string;
+    renderedContent?: string;
   };
   groundingChunks?: GroundingChunk[];
   groundingSupports?: GroundingSupport[];
@@ -251,8 +251,17 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
   const groundingTool = {
     googleSearch: {},
   };
-  const config = {
+  let systemInstruction: string = ""; 
+  systemInstruction = "You are performing web search-based research for the latest news stories related to the prmopt topic. " + 
+    "For each news topic found, generate a one-sentence executive summary, a 4-5 sentence paragraph summarizing relevant articles, a one-line list of sources used, and one-line list of key stakeholers." + 
+    "Use sections, headings, and emojis to separate topics for the sake of readibility." +
+    "Your audience is an educated professional with advanced knowledge of a given topic. They are a leader within the given industry and want to stay on top of key topics.";
+    
+   
+  
+   const config = {
     tools: [groundingTool],
+    systemInstruction: systemInstruction,
   };
 
   try {
@@ -265,16 +274,18 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
 
     let fullText = '';
     let finalGroundingMetadata: GroundingMetadata | undefined;
+    let streamStarted = false;
 
     const stream = async function* () {
       try {
+        streamStarted = true;
         for await (const chunk of response) {
           const chunkText = chunk.text || '';
           fullText += chunkText;
           
           // Store grounding metadata from the last chunk (it's usually in the final chunk)
           if (chunk.candidates?.[0]?.groundingMetadata) {
-            finalGroundingMetadata = chunk.candidates[0].groundingMetadata;
+            finalGroundingMetadata = chunk.candidates[0].groundingMetadata as unknown as GroundingMetadata;
           }
 
           yield {
@@ -301,9 +312,11 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
     };
 
     const getFullResponse = async (): Promise<GeminiGenerateResponse> => {
-      // Wait for the stream to complete
-      for await (const chunk of stream()) {
-        if (chunk.isComplete) break;
+      // If stream hasn't been consumed yet, consume it now
+      if (!streamStarted) {
+        for await (const chunk of stream()) {
+          if (chunk.isComplete) break;
+        }
       }
 
       // Extract grounding metadata components

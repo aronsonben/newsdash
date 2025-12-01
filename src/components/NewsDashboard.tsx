@@ -39,7 +39,7 @@ const dummyItems: NewsItem[] = [
   }
 ];
 
-export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached }: { title?: string; data: GenerateResponse | null; streamingText?: string; isStreaming?: boolean; isCached?: boolean }) {
+export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached, cacheTimestamp, onRunAgain }: { title?: string; data: GenerateResponse | null; streamingText?: string; isStreaming?: boolean; isCached?: boolean; cacheTimestamp?: number | null; onRunAgain?: () => void }) {
   const items: NewsItem[] = React.useMemo(() => {
     if (!data) return [];
     if (!data.groundingMetadata?.groundingChunks) return [];
@@ -138,35 +138,50 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
   };
 
   return (
-    <section 
-      className="mt-6 p-6 rounded-xl border"
-      style={{
-        backgroundColor: 'rgb(var(--dashboard-bg))',
-        borderColor: 'rgb(var(--border))'
-      }}
-    >
-      <div 
-        className="font-bold mb-4 font-grotesk text-xl flex items-center gap-2"
-        style={{ color: 'rgb(var(--text-primary))' }}
-      >
-        <span 
-          className="w-2 h-2 rounded-full"
-          style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
-        ></span>
-        {title ? `${title} — News Dashboard` : 'News Dashboard'}
-        {isCached && (
-          <span 
-            className="text-xs px-2 py-1 rounded-full font-medium"
-            style={{ 
-              backgroundColor: 'rgb(var(--bg-secondary))',
-              color: 'rgb(var(--text-muted))'
-            }}
-            title="This data was loaded from cache"
-          >
-            CACHED
+    <section className="mt-6">
+      {/* Cache notification bar */}
+      {isCached && (
+        <div 
+          className="flex items-center justify-between px-6 py-2 text-xs border-l border-r border-t rounded-t-xl"
+          style={{
+            backgroundColor: 'rgb(var(--bg-secondary) / 0.5)',
+            borderColor: 'rgb(var(--border))',
+            color: 'rgb(var(--text-muted))'
+          }}
+        >
+          <span className="flex items-center gap-2">
+            <span 
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
+            ></span>
+            Cached on {cacheTimestamp ? new Date(cacheTimestamp).toLocaleDateString() + ' at ' + new Date(cacheTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown date'}
           </span>
-        )}
-      </div>
+          {onRunAgain && (
+            <button
+              onClick={onRunAgain}
+              className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary"
+              title="Run this prompt again to get fresh results"
+            >
+              Run Again
+            </button>
+          )}
+        </div>
+      )}
+      
+      {/* Main dashboard content */}
+      <div 
+        className={`p-6 border ${isCached ? 'rounded-b-xl rounded-t-none border-t-0' : 'rounded-xl'}`}
+        style={{
+          backgroundColor: 'rgb(var(--dashboard-bg))',
+          borderColor: 'rgb(var(--border))'
+        }}
+      >
+        <div 
+          className="font-bold mb-4 font-grotesk flex items-center gap-2"
+          style={{ color: 'rgb(var(--text-primary))' }}
+        >
+          <h3 className="text-2xl">{title ? `${title}` : 'News Dashboard'}</h3>
+        </div>
 
       {(streamingText || data?.text) && (
         <div 
@@ -197,7 +212,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
               skipHtml={false}
               urlTransform={(url) => url}
             >
-              {data?.textWithCitations || data?.text || ''}
+              {data?.text || ''}
             </ReactMarkdown>
           )}
         </div>
@@ -331,6 +346,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
           </table>
         </div>
       )}
+      </div>
     </section>
   );
 }

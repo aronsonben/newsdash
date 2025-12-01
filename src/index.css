@@ -29,7 +29,7 @@
 
 [data-theme="dark"] {
   /* Dark theme - RGB values */
-  --bg-primary: 25 28 26;
+  --bg-primary: 4 27 21;
   --bg-secondary: 15 18 16;
   --bg-tertiary: 35 38 35;
   --text-primary: 199 209 205;
@@ -39,9 +39,11 @@
   --accent: 127 179 163;
   
   /* Section-specific colors for creative palette */
-  --sidebar-bg: 20 23 22;
+  --sidebar-bg: 12 21 14;
   --sidebar-accent: 107 142 127;
-  --chat-bg: 26 29 27;
+  --chat-bg: 4 27 21;
+  /* --chat-bg: 26 29 27; */
+  
   --chat-accent: 127 179 163;
   --dashboard-bg: 23 26 24;
   --dashboard-accent: 139 196 178;
@@ -50,6 +52,44 @@
   --button-primary: 59 130 246;
   --button-primary-hover: 37 99 235;
   --button-primary-disabled: 30 64 175;
+}
+
+/* Earthtone Dark Theme Palette */
+[data-theme="dark-earth"] {
+  /* General backgrounds */
+  --bg-primary: 24 28 23;      /* #181C17 deep olive/earthy black */
+  --bg-secondary: 35 40 31;    /* #23281F slightly lighter for cards */
+  --bg-tertiary: 58 65 52;     /* #3A4134 for subtle surfaces */
+
+  /* Text colors */
+  --text-primary: 243 246 242;   /* #F3F6F2 off-white */
+  --text-secondary: 183 194 177; /* #B7C2B1 muted light green-grey */
+  --text-muted: 139 153 133;     /* #8B9985 muted olive-grey */
+
+  /* Borders and shadows */
+  --border: 44 51 39;          /* #2C3327 dark olive-grey */
+
+  /* Accents */
+  --accent: 76 154 106;        /* #4C9A6A moss green */
+  --accent-brown: 139 111 78;  /* #8B6F4E earth brown */
+  --accent-yellow: 217 180 74; /* #D9B44A muted gold */
+  --accent-blue: 58 107 124;   /* #3A6B7C slate blue */
+
+  /* Section-specific */
+  --sidebar-bg: 35 40 31;      /* #23281F */
+  --sidebar-accent: 139 111 78;/* #8B6F4E */
+  --chat-bg: 24 28 23;         /* #181C17 */
+  --chat-accent: 76 154 106;   /* #4C9A6A */
+  --dashboard-bg: 35 40 31;    /* #23281F */
+  --dashboard-accent: 217 180 74; /* #D9B44A */
+
+  /* Button colors */
+  --button-primary: 76 154 106;        /* #4C9A6A */
+  --button-primary-hover: 58 107 124;  /* #3A6B7C */
+  --button-primary-disabled: 44 51 39; /* #2C3327 */
+  --button-secondary: 139 111 78;      /* #8B6F4E earth brown */
+  --button-secondary-hover: 115 91 64; /* #735B40 darker earth brown */
+  --button-secondary-disabled: 58 65 52; /* #3A4134 muted */
 }
 
 /* Base page styling */
@@ -306,3 +346,16 @@
 .theme-button-primary { background-color: rgb(var(--button-primary)); }
 .theme-button-primary-hover:hover { background-color: rgb(var(--button-primary-hover)); }
 .theme-button-primary-disabled { background-color: rgb(var(--button-primary-disabled)); }
+.theme-button-secondary { background-color: rgb(var(--button-secondary)); }
+.theme-button-secondary-hover:hover { background-color: rgb(var(--button-secondary-hover)); }
+.theme-button-secondary-disabled { background-color: rgb(var(--button-secondary-disabled)); }
+.theme-button-outlined {
+  background-color: transparent;
+  border: 1px solid rgb(var(--button-secondary));
+  color: rgb(var(--button-secondary));
+}
+.theme-button-outlined:hover {
+  background-color: rgb(var(--button-secondary) / 0.1);
+  border-color: rgb(var(--button-secondary-hover));
+  color: rgb(var(--button-secondary-hover));
+}
