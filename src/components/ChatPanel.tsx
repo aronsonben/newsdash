@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { apiClient, GenerateResponse } from '../lib/apiClient';
-import { generateWithGemini, generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse } from '../lib/geminiClient';
+import { generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse } from '../lib/geminiClient';
 import { hasReachedDailyLimit, getUsageInfo } from '../lib/usageTracker';
 import { cacheManager } from '../lib/cacheManager';
 
@@ -11,7 +10,7 @@ interface Message {
   content: string;
 }
 
-const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; onResponse?: (data: GeminiGenerateResponse, fromCache?: boolean, timestamp?: number) => void; onStreamChunk?: (text: string, isComplete: boolean) => void }>(function ChatPanel({ preset, onResponse, onStreamChunk }, ref) {
+const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; shortcutIcon?: string; shortcutName?: string; onResponse?: (data: GeminiGenerateResponse, fromCache?: boolean, timestamp?: number) => void; onStreamChunk?: (text: string, isComplete: boolean) => void }>(function ChatPanel({ preset, shortcutIcon, shortcutName, onResponse, onStreamChunk }, ref) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -138,93 +137,33 @@ const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; 
     adjustTextareaHeight();
   }, [input, adjustTextareaHeight]);
 
+  const iconSrc = shortcutIcon ? (shortcutIcon.startsWith('/') ? shortcutIcon : `/${shortcutIcon}`) : undefined;
+
   return (
-    <section className="grid gap-4 p-4 rounded-xl theme-chat-bg border border-[rgb(var(--chat-accent))]">
-      {/* Removing Messaging Idea 
-      <div 
-        className="grid gap-3 border rounded-lg p-4"
-        style={{
-          backgroundColor: 'rgb(var(--bg-primary))',
-          borderColor: 'rgb(var(--border))'
-        }}
-      >
-        {messages.map((m) => (
-          <div key={m.id} className="grid gap-1">
-            <span 
-              className="text-xs font-medium uppercase tracking-wide"
-              style={{ color: 'rgb(var(--chat-accent))' }}
-            >
-              {m.role}
-            </span>
-            <span 
-              className="leading-relaxed"
-              style={{ color: 'rgb(var(--text-secondary))' }}
-            >
-              {m.content}
-            </span>
-          </div>
-        ))}
-        {error && <div className="text-red-600 bg-red-50 dark:bg-red-950/50 p-3 rounded-lg border border-red-200 dark:border-red-800/50 text-sm">{error}</div>}
-        {(() => {
-          const usageInfo = getUsageInfo();
-          if (hasReachedDailyLimit()) {
-            return (
-              <div className="text-red-600 bg-red-50 dark:bg-red-950/50 p-3 rounded-lg border border-red-200 dark:border-red-800/50 text-sm">
-                <strong>Daily limit reached:</strong> You've used all 20 API calls for today. Please try again tomorrow.
-              </div>
-            );
-          } else if (usageInfo.remaining <= 3 && usageInfo.used > 0) {
-            return (
-              <div className="text-yellow-600 bg-yellow-50 dark:bg-yellow-950/50 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800/50 text-sm">
-                <strong>Warning:</strong> You have {usageInfo.remaining} API calls remaining today.
-              </div>
-            );
-          }
-          return null;
-        })()}
-      </div>
-      */} 
+    <section className="grid p-1 rounded-xl theme-chat-bg">
+      {shortcutName && (
+        <p className="font-normal theme-text-secondary">
+          {shortcutName}
+        </p>
+      )}
       <div className="flex flex-col gap-3 items-end">
         <div className="flex-1">
           {/* Pre-defined prompt header */}
-          <div>
-            {input ? 
-              (<p className="text-xl font-bold my-4 mx-2">{input}</p>) : 
-              (<p className="font-bold my-4 mx-2">Choose a prompt to get started.</p>)
-            }
-          </div>
-          {/* Prompt Input Textbox */}
-          {/* <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-              setInput(e.target.value);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                onSend();
+          <div className="flex items-center gap-4">
+            {iconSrc && (
+              <img
+                src={iconSrc}
+                alt="Selected shortcut"
+                className="h-20 w-20 rounded-2xl border border-[rgb(var(--border))] object-cover shadow-sm"
+              />
+            )}
+            <div className="flex-1">
+              {input ? 
+                (<p className="text-xl font-semibold my-4">{input}</p>) : 
+                (<p className="font-bold my-4">Choose a prompt to get started.</p>)
               }
-            }}
-            placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-            className="w-full px-4 py-3 rounded-lg border resize-none focus:outline-none focus:ring-2 transition-all duration-200 leading-relaxed"
-            style={{
-              minHeight: '44px',
-              maxHeight: '200px',
-              overflowY: 'hidden',
-              backgroundColor: 'rgb(var(--bg-primary))',
-              borderColor: 'rgb(var(--border))',
-              color: 'rgb(var(--text-primary))',
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = 'rgb(var(--chat-accent))';
-              e.target.style.boxShadow = `0 0 0 2px rgb(var(--chat-accent) / 0.2)`;
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = 'rgb(var(--border))';
-              e.target.style.boxShadow = 'none';
-            }}
-          /> */}
+            </div>
+          </div>
         </div>
         <button
           onClick={() => onSend()}

@@ -4,11 +4,12 @@ import ChatPanel from './components/ChatPanel';
 import Sidebar from './components/Sidebar';
 import NewsDashboard from './components/NewsDashboard';
 import UsageIndicator from './components/UsageIndicator';
+import MobileShortcutTray from './components/MobileShortcutTray';
 import React from 'react';
 import { GeminiGenerateResponse } from './lib/geminiClient';
 
 export default function App() {
-  const [selected, setSelected] = React.useState<null | { name: string; prompt: string }>(null);
+  const [selected, setSelected] = React.useState<null | { name: string; prompt: string; icon?: string }>(null);
   const [newsData, setNewsData] = React.useState<GeminiGenerateResponse | null>(null);
   const [streamingText, setStreamingText] = React.useState<string>('');
   const [isStreaming, setIsStreaming] = React.useState<boolean>(false);
@@ -32,6 +33,13 @@ export default function App() {
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
+  const handleShortcutSelect = (s: { name: string; prompt: string; icon?: string }) => {
+    setSelected({ name: s.name, prompt: s.prompt, icon: s.icon });
+    setNewsData(null);
+    setIsCached(false);
+    setCacheTimestamp(null);
+  };
+
   return (
     <div 
       className="flex flex-col min-h-screen font-grotesk"
@@ -41,24 +49,20 @@ export default function App() {
       }}
     >
       <Header isDark={isDark} toggleTheme={() => setIsDark(!isDark)} />
+      <MobileShortcutTray onSelect={handleShortcutSelect} />
       <main className="flex-1 flex min-h-0">
-        <Sidebar
-          onSelect={(s) => {
-            setSelected({ name: s.name, prompt: s.prompt });
-            setNewsData(null);
-            setIsCached(false);
-            setCacheTimestamp(null);
-          }}
-        />
+        <Sidebar onSelect={handleShortcutSelect} />
         <div className="flex-1 p-4 max-w-[960px] mx-auto">
           <section className="mb-4">
-            <p style={{ color: 'rgb(var(--text-secondary))' }}>
-              Ben's NewsDash for The Concourse. Use my predefined prompts to get the latest news on important topics.
+            <p className="text-xs font-grotesk italic" style={{ color: 'rgb(var(--text-secondary))' }}>
+              Heyo! It's Ben from Concourse. Get some helpful summaries of the latest news in some interesting topics.
             </p>
           </section>
           <ChatPanel 
             ref={chatPanelRef}
-            preset={selected?.prompt} 
+            preset={selected?.prompt}
+            shortcutIcon={selected?.icon}
+            shortcutName={selected?.name}
             onResponse={(data, fromCache = false, timestamp) => {
               setNewsData(data);
               setIsCached(fromCache);

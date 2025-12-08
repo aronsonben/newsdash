@@ -257,8 +257,6 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
     "Use sections, headings, and emojis to separate topics for the sake of readibility." +
     "Your audience is an educated professional with advanced knowledge of a given topic. They are a leader within the given industry and want to stay on top of key topics.";
     
-   
-  
    const config = {
     tools: [groundingTool],
     systemInstruction: systemInstruction,

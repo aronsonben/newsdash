@@ -41,7 +41,7 @@
   /* Section-specific colors for creative palette */
   --sidebar-bg: 12 21 14;
   --sidebar-accent: 107 142 127;
-  --chat-bg: 4 27 21;
+  --chat-bg: 5 40 31;
   /* --chat-bg: 26 29 27; */
   
   --chat-accent: 127 179 163;
@@ -78,7 +78,7 @@
   /* Section-specific */
   --sidebar-bg: 35 40 31;      /* #23281F */
   --sidebar-accent: 139 111 78;/* #8B6F4E */
-  --chat-bg: 24 28 23;         /* #181C17 */
+  --chat-bg: 35 40 31;        
   --chat-accent: 76 154 106;   /* #4C9A6A */
   --dashboard-bg: 35 40 31;    /* #23281F */
   --dashboard-accent: 217 180 74; /* #D9B44A */

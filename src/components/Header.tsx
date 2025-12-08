@@ -1,4 +1,5 @@
 import React from 'react';
+import newsdashgreen from '../assets/newsdash_green.png';
 
 interface HeaderProps {
   isDark: boolean;
@@ -15,13 +16,20 @@ export default function Header({ isDark, toggleTheme }: HeaderProps) {
         color: 'rgb(var(--text-primary))'
       }}
     >
-      <div 
-        className="font-semibold font-grotesk"
-        style={{ color: 'rgb(var(--text-primary))' }}
-      >
-        The Concourse NewsDash
+      <div className="flex items-center gap-3">
+        <img 
+          src={newsdashgreen} 
+          alt="NewsDash logo" 
+          className="h-10 w-auto rounded-lg"
+        />
+        <div 
+          className="font-semibold font-grotesk"
+          style={{ color: 'rgb(var(--text-primary))' }}
+        >
+          The Concourse NewsDash
+        </div>
       </div>
-      <div className="flex gap-3 items-center">
+      <div className="gap-3 items-center sm:flex hidden">
         <button
           onClick={toggleTheme}
           className="px-3 py-2 rounded-lg text-white border-0 transition-colors duration-200 font-medium"
