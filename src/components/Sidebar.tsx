@@ -40,7 +40,7 @@ export function Sidebar({ onSelect }: { onSelect: (s: Shortcut) => void }) {
                 e.currentTarget.style.borderColor = 'rgb(var(--border))';
               }}
             >
-              <span className="flex items-center justify-center h-10 w-10 rounded-xl overflow-hidden bg-white/10">
+              <span className="flex items-center justify-center h-10 w-10 md:min-w-20 md:min-h-20 rounded-xl overflow-hidden bg-white/10">
                 {iconSrc ? (
                   <img src={iconSrc} alt={item.name} className="h-full w-full object-cover" />
                 ) : (

@@ -5,4 +5,5 @@ dist
 newsdash.code-workspace
 .DS_Store
 
-src/components/GeminiNewsSearch.tsx
+.github/personal-instructions.md
+.github/prompts.md

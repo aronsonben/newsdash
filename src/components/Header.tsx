@@ -18,7 +18,7 @@ export default function Header({ isDark, toggleTheme }: HeaderProps) {
     >
       <div className="flex items-center gap-3">
         <img 
-          src={newsdashgreen} 
+          src="/newsdash_green.png" 
           alt="NewsDash logo" 
           className="h-10 w-auto rounded-lg"
         />

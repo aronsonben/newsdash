@@ -6,7 +6,7 @@
 
     "prompt": "Give me a summary of the latest and most important new releases, research breakthroughs, model developments, or business ventures related to AI within the past week.",
 
-    "icon": "/src/assets/universe.png",
+    "icon": "/universe.png",
 
     "instructions": "For each piece of news, give a one-stence impact summary, links to the story, and one-liner of key stakdholers. For sources you may use, but are not limited to, the following: OpenAI Research, Anthropic News, Perplexity Hub, Meta AI, Google DeepMind, arXiv cs.AI, Hugging Face Blog."
   },
@@ -18,7 +18,7 @@
 
     "prompt": "List the latest major climate, environment, and sustainability news headlines from Grist, Inside Climate News, Guardian Climate, NYT Climate, Carbon Brief, and related leading sources for the past 7 days. Summarize each in 1-2 sentences with a link.",
 
-    "icon": "/src/assets/earth.png"
+    "icon": "/earth.png"
   },
 
   {
@@ -28,7 +28,7 @@
 
     "prompt": "Tell me about the latest climate, environment, and sustainability news coming out of Massachusetts in the past week",
 
-    "icon": "/src/assets/mass.png"
+    "icon": "/mass.png"
   },
 
   {
@@ -38,7 +38,7 @@
 
     "prompt": "Tell me about the latest climate, environment, and sustainability news coming out of New England in the past week.",
 
-    "icon": "/src/assets/newengland.png"
+    "icon": "/newengland.png"
   },
 
   {
@@ -48,6 +48,6 @@
 
     "prompt": "Tell me about the latest climate, environment, and sustainability news specifically related to the Boston, MA metro area within the past month.",
 
-    "icon": "/src/assets/boston.png"
+    "icon": "/boston.png"
   }
 ]

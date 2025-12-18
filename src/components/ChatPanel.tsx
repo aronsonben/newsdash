@@ -140,7 +140,7 @@ const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; 
   const iconSrc = shortcutIcon ? (shortcutIcon.startsWith('/') ? shortcutIcon : `/${shortcutIcon}`) : undefined;
 
   return (
-    <section className="grid p-1 rounded-xl theme-chat-bg">
+    <section className="grid p-4 rounded-xl theme-chat-bg">
       {shortcutName && (
         <p className="font-normal theme-text-secondary">
           {shortcutName}
@@ -159,7 +159,7 @@ const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; 
             )}
             <div className="flex-1">
               {input ? 
-                (<p className="text-xl font-semibold my-4">{input}</p>) : 
+                (<p className="md:text-xl font-semibold my-4">{input}</p>) : 
                 (<p className="font-bold my-4">Choose a prompt to get started.</p>)
               }
             </div>
