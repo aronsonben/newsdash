@@ -171,52 +171,46 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
       {/* Main dashboard content */}
       <div 
         className={`p-6 border ${isCached ? 'rounded-b-xl rounded-t-none border-t-0' : 'rounded-xl'}`}
-        style={{
-          backgroundColor: 'rgb(var(--dashboard-bg))',
-          borderColor: 'rgb(var(--border))'
-        }}
+        style={{ backgroundColor: 'rgb(var(--dashboard-bg))', borderColor: 'rgb(var(--border))' }}
       >
-        <div 
-          className="font-bold mb-4 font-grotesk flex items-center gap-2"
-          style={{ color: 'rgb(var(--text-primary))' }}
-        >
+        <div className="font-bold mb-4 flex items-center gap-2 text-[rgb(var(--text-primary))]">
           <h3 className="text-2xl">{title ? `${title}` : 'News Dashboard'}</h3>
         </div>
 
-      {(streamingText || data?.text) && (
-        <div 
-          className="mb-6 p-5 rounded-xl border markdown-content shadow-sm"
-          style={{
-            backgroundColor: 'rgb(var(--bg-primary))',
-            borderColor: 'rgb(var(--border))',
-            color: 'rgb(var(--text-secondary))'
-          }}
-        >
-          {isStreaming ? (
-            <div className="relative">
+        {(streamingText || data?.text) && (
+          <div 
+            className="mb-6 p-5 rounded-xl border markdown-content shadow-sm"
+            style={{
+              backgroundColor: 'rgb(var(--bg-primary))',
+              borderColor: 'rgb(var(--border))',
+              color: 'rgb(var(--text-secondary))'
+            }}
+          >
+            {isStreaming ? (
+              <div className="relative">
+                <ReactMarkdown 
+                  components={markdownComponents}
+                  skipHtml={false}
+                  urlTransform={(url) => url}
+                >
+                  {streamingText || ''}
+                </ReactMarkdown>
+                <span 
+                  className="inline-block w-2 h-5 ml-1 animate-pulse"
+                  style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
+                ></span>
+              </div>
+            ) : (
               <ReactMarkdown 
                 components={markdownComponents}
                 skipHtml={false}
                 urlTransform={(url) => url}
               >
-                {streamingText || ''}
+                {data?.text || ''}
               </ReactMarkdown>
-              <span 
-                className="inline-block w-2 h-5 ml-1 animate-pulse"
-                style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
-              ></span>
-            </div>
-          ) : (
-            <ReactMarkdown 
-              components={markdownComponents}
-              skipHtml={false}
-              urlTransform={(url) => url}
-            >
-              {data?.text || ''}
-            </ReactMarkdown>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
       {items.length === 0 ? (
         <div 

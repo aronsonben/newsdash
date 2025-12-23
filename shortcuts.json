@@ -1,5 +1,6 @@
 [
   {
+    "id": "ai-innovation-daily-review",
     "name": "AI Innovation Daily Review",
     "description": "Monitor major AI sources for breakthroughs, releases, and news over the past week.",
     "prompt": "Give me a summary of the latest and most important new releases, research breakthroughs, model developments, or business ventures related to AI within the past week.",
@@ -7,6 +8,7 @@
     "instructions": "For each piece of news, give a one-stence impact summary, links to the story, and one-liner of key stakdholers. For sources you may use, but are not limited to, the following: OpenAI Research, Anthropic News, Perplexity Hub, Meta AI, Google DeepMind, arXiv cs.AI, Hugging Face Blog."
   },
   {
+    "id": "global-climate-headlines-weekly",
     "name": "Latest Climate Headlines Weekly",
     "description": "Read the top stories from leading global and US climate, environment, and sustainability sources over the past week.",
     "prompt": "Tell me about the latest major climate, environment, and sustainability news from around the world for the past 7 days.",
@@ -14,6 +16,7 @@
     "instructions": "Search the web for the latest news published from the following sources: Grist, Canary Media, Inside Climate News, Guardian Climate, NYT Climate, Carbon Brief."
   },
   {
+    "id": "massachusetts-climate-news-weekly",
     "name": "Massachusetts Climate News Weekly",
     "description": "Read the top stories from leading global and US climate, environment, and sustainability sources over the past week.",
     "prompt": "Tell me about the latest climate, environment, and sustainability news coming out of Massachusetts in the past week",
@@ -21,13 +24,15 @@
     "instructions": ""
   },
   {
-    "name": "New England Climate News Recent",
+    "id": "new-england-climate-news-weekly",
+    "name": "New England Climate News Weekly",
     "description": "Read the top stories from leading global and US climate, environment, and sustainability sources over the past week.",
     "prompt": "Tell me about the latest climate, environment, and sustainability news coming out of New England in the past week.",
     "icon": "/newengland.png",
     "instructions": ""
   },
   {
+    "id": "boston-climate-news-monthly",
     "name": "Boston Climate News Monthly",
     "description": "Read the top stories from leading global and US climate, environment, and sustainability sources over the past month.",
     "prompt": "Tell me about the latest climate, environment, and sustainability news specifically related to the Boston, MA metro area within the past month.",

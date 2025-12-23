@@ -1,4 +1,5 @@
 export interface Shortcut {
+  id: string;
   name: string; 
   description: string;
   prompt: string; 

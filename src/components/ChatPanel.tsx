@@ -4,12 +4,6 @@ import { hasReachedDailyLimit, getUsageInfo } from '../lib/usageTracker';
 import { cacheManager } from '../lib/cacheManager';
 import { Shortcut } from 'src/types';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
-
 const ChatPanel = React.forwardRef<
   { runAgain: () => void }, 
   { shortcut: Shortcut,
@@ -40,7 +34,10 @@ const ChatPanel = React.forwardRef<
 
   async function onSend(forceRefresh = false) {
     if (!canSend) return;
-    const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: input.trim() };
+
+    // prompt info
+    const promptId = shortcut.id || 'custom-prompt';
+    const promptText = input.trim();
     
     // setInput('');
     setLoading(true);
@@ -57,7 +54,7 @@ const ChatPanel = React.forwardRef<
 
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
-        const cachedResponseWithTimestamp = await cacheManager.getCachedWithTimestamp(userMessage.content);
+        const cachedResponseWithTimestamp = await cacheManager.getCachedWithTimestamp(promptId);
         if (cachedResponseWithTimestamp) {
           // Use cached response - simulate streaming for consistent UX
           if (onStreamChunk) {
@@ -72,7 +69,7 @@ const ChatPanel = React.forwardRef<
       
       // No cache hit or forced refresh - make API call with streaming
       const streamResponse = await generateStreamWithGemini({
-        prompt: userMessage.content,
+        prompt: promptText,
         instructions: shortcut.instructions,
         temperature: 0.7,
         modelName: 'gemini-2.5-flash'
@@ -94,7 +91,7 @@ const ChatPanel = React.forwardRef<
       const fullResponse = await streamResponse.getFullResponse();
       
       // Cache the response for future use
-      await cacheManager.setCached(userMessage.content, fullResponse);
+      await cacheManager.setCached(promptId, fullResponse);
       
       // Send final response to NewsDashboard
       if (onStreamChunk) {

@@ -72,9 +72,9 @@ class CacheManager {
     return cached.data;
   }
 
-  async getCachedWithTimestamp(prompt: string): Promise<{ data: GeminiGenerateResponse; timestamp: number } | null> {
+  async getCachedWithTimestamp(promptId: string): Promise<{ data: GeminiGenerateResponse; timestamp: number } | null> {
     const cache = this.getCache();
-    const promptHash = await this.hashPrompt(prompt);
+    const promptHash = await this.hashPrompt(promptId);
     const cached = cache[promptHash];
 
     if (!cached) {
@@ -88,13 +88,13 @@ class CacheManager {
       return null;
     }
 
-    console.log('Cache hit for prompt:', prompt.substring(0, 50) + '...');
+    console.log('Cache hit for prompt:', promptId.substring(0, 50) + '...');
     return { data: cached.data, timestamp: cached.timestamp };
   }
 
-  async setCached(prompt: string, response: GeminiGenerateResponse): Promise<void> {
+  async setCached(promptId: string, response: GeminiGenerateResponse): Promise<void> {
     const cache = this.getCache();
-    const promptHash = await this.hashPrompt(prompt);
+    const promptHash = await this.hashPrompt(promptId);
 
     cache[promptHash] = {
       data: response,
@@ -103,7 +103,7 @@ class CacheManager {
     };
 
     this.setCache(cache);
-    console.log('Cached response for prompt:', prompt.substring(0, 50) + '...');
+    console.log('Cached response for prompt ID:', promptId);
   }
 
   clearExpired(): number {
@@ -150,6 +150,15 @@ class CacheManager {
       oldestEntry: new Date(oldestTimestamp),
       newestEntry: new Date(newestTimestamp)
     };
+  }
+
+  getAllCacheEntries(): Array<{ promptHash: string; timestamp: Date; data: GeminiGenerateResponse }> {
+    const cache = this.getCache();
+    return Object.entries(cache).map(([hash, cached]) => ({
+      promptHash: hash,
+      timestamp: new Date(cached.timestamp),
+      data: cached.data
+    }));
   }
 }
 

@@ -8,10 +8,12 @@ import NewsDashboard from './components/NewsDashboard';
 import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
 import { GeminiGenerateResponse } from './lib/geminiClient';
+import { cacheManager } from './lib/cacheManager';
 import { Shortcut } from './types';
 
 // This is the global climate news shortcut just copy-pasted. Should eventually do this more tactfully.
 const DEFAULT_SHORTCUT = {
+    "id": "global-climate-headlines-weekly",
     "name": "Latest Climate Headlines Weekly",
     "description": "Read the top stories from leading global and US climate, environment, and sustainability sources over the past week.",
     "prompt": "Tell me about the latest major climate, environment, and sustainability news from around the world for the past 7 days.",
@@ -27,6 +29,7 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [isCached, setIsCached] = useState<boolean>(false);
   const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
+  const [cacheRefreshTrigger, setCacheRefreshTrigger] = useState(0);
   const [isDark, setIsDark] = useState(() => {
     // Check for saved theme or default to dark
     const saved = localStorage.getItem('theme');
@@ -44,18 +47,49 @@ export default function App() {
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
-  const handleShortcutSelect = (shortcut: Shortcut) => {
-    const newShortcut = {
+  // Handle shortcut selection from Sidebar or MobileShortcutTray
+  const handleShortcutSelect = async (shortcut: Shortcut) => {
+    const selectedShortcut = {
+      id: shortcut.id,
       name: shortcut.name,
       description: shortcut.description,
       prompt: shortcut.prompt,
       icon: shortcut.icon,
       instructions: shortcut.instructions
     }
-    setSelected(newShortcut);
-    setNewsData(null);
-    setIsCached(false);
-    setCacheTimestamp(null);
+    
+    // Update selected shortcut immediately (for ChatPanel)
+    setSelected(selectedShortcut);
+    
+    // Check cache and update if exists (for NewsDashboard)
+    const cached = await cacheManager.getCachedWithTimestamp(selectedShortcut.id);
+    if (cached) {
+      setNewsData(cached.data);
+      setIsCached(true);
+      setCacheTimestamp(cached.timestamp);
+    } else {
+      // Clear previous data if no cache exists
+      setNewsData(null);
+      setIsCached(false);
+      setCacheTimestamp(null);
+    }
+  };
+
+  const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean = false, timestamp?: number) => {
+    setNewsData(data);
+    setIsCached(fromCache);
+    setCacheTimestamp(timestamp || null);
+    // Trigger cache indicator refresh in Sidebar
+    setCacheRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleStreamChunk = (text: string, isComplete: boolean) => {
+    setStreamingText(text);
+    setIsStreaming(!isComplete);
+    if (isComplete) {
+      // Clear streaming text when complete, let newsData handle final display
+      setTimeout(() => setStreamingText(''), 100);
+    }
   };
 
   return (
@@ -67,9 +101,9 @@ export default function App() {
       }}
     >
       <Header isDark={isDark} toggleTheme={() => setIsDark(!isDark)} />
-      <MobileShortcutTray onSelect={handleShortcutSelect} />
+      <MobileShortcutTray onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} />
       <main className="flex-1 flex min-h-0">
-        <Sidebar onSelect={handleShortcutSelect} />
+        <Sidebar onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} />
         <div className="flex-1 p-4 max-w-[960px] mx-auto">
           <section className="mb-4">
             <p className="text-xs font-grotesk italic" style={{ color: 'rgb(var(--text-secondary))' }}>
@@ -79,19 +113,8 @@ export default function App() {
           <ChatPanel 
             ref={chatPanelRef}
             shortcut={selected}
-            onResponse={(data, fromCache = false, timestamp) => {
-              setNewsData(data);
-              setIsCached(fromCache);
-              setCacheTimestamp(timestamp || null);
-            }}
-            onStreamChunk={(text: string, isComplete: boolean) => {
-              setStreamingText(text);
-              setIsStreaming(!isComplete);
-              if (isComplete) {
-                // Clear streaming text when complete, let newsData handle final display
-                setTimeout(() => setStreamingText(''), 100);
-              }
-            }}
+            onResponse={handleResponse}
+            onStreamChunk={handleStreamChunk}
           />
           {selected && <NewsDashboard 
             title={selected.name} 
