@@ -32,7 +32,7 @@ export default function UsageIndicator() {
   if (isDevelopment) {
     return (
       <span 
-        className="text-xs opacity-75"
+        className="text-[10px] opacity-75"
         style={{ color: 'rgb(var(--text-muted))' }}
       >
         Development Mode

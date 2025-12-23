@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse } from '../lib/geminiClient';
 import { hasReachedDailyLimit, getUsageInfo } from '../lib/usageTracker';
 import { cacheManager } from '../lib/cacheManager';
-
+import { Shortcut } from 'src/types';
 
 interface Message {
   id: string;
@@ -10,8 +10,24 @@ interface Message {
   content: string;
 }
 
-const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; shortcutIcon?: string; shortcutName?: string; onResponse?: (data: GeminiGenerateResponse, fromCache?: boolean, timestamp?: number) => void; onStreamChunk?: (text: string, isComplete: boolean) => void }>(function ChatPanel({ preset, shortcutIcon, shortcutName, onResponse, onStreamChunk }, ref) {
-  const [messages, setMessages] = useState<Message[]>([]);
+const ChatPanel = React.forwardRef<
+  { runAgain: () => void }, 
+  { shortcut: Shortcut,
+    onResponse?: ( 
+      data: GeminiGenerateResponse, 
+      fromCache?: boolean, 
+      timestamp?: number
+    ) => void; 
+    onStreamChunk?: ( 
+      text: string, 
+      isComplete: boolean
+    ) => void }
+  > ( function ChatPanel({ 
+    shortcut,
+    onResponse, 
+    onStreamChunk 
+  }, ref) {
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,26 +35,13 @@ const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; 
   const canSend = useMemo(() => input.trim().length > 0 && !loading && !hasReachedDailyLimit(), [input, loading]);
 
   useEffect(() => {
-    setMessages([
-      {
-        id: crypto.randomUUID(),
-        role: 'system',
-        content: 'Choose one of the shortcuts in the sidebar to get started.'
-      }
-    ]);
-  }, []);
-
-  useEffect(() => {
-    if (typeof preset === 'string') {
-      setInput(preset);
-    }
-  }, [preset]);
+    setInput(shortcut.prompt);
+  }, [shortcut]);
 
   async function onSend(forceRefresh = false) {
     if (!canSend) return;
     const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: input.trim() };
     
-    setMessages((prev: Message[]) => [...prev, userMessage]);
     // setInput('');
     setLoading(true);
     setError(null);
@@ -70,6 +73,7 @@ const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; 
       // No cache hit or forced refresh - make API call with streaming
       const streamResponse = await generateStreamWithGemini({
         prompt: userMessage.content,
+        instructions: shortcut.instructions,
         temperature: 0.7,
         modelName: 'gemini-2.5-flash'
       });
@@ -137,13 +141,13 @@ const ChatPanel = React.forwardRef<{ runAgain: () => void }, { preset?: string; 
     adjustTextareaHeight();
   }, [input, adjustTextareaHeight]);
 
-  const iconSrc = shortcutIcon ? (shortcutIcon.startsWith('/') ? shortcutIcon : `/${shortcutIcon}`) : undefined;
+  const iconSrc = shortcut.icon ? (shortcut.icon.startsWith('/') ? shortcut.icon : `/${shortcut.icon}`) : undefined;
 
   return (
     <section className="grid p-4 rounded-xl theme-chat-bg">
-      {shortcutName && (
+      {shortcut.name && (
         <p className="font-normal theme-text-secondary">
-          {shortcutName}
+          {shortcut.name}
         </p>
       )}
       <div className="flex flex-col gap-3 items-end">

@@ -1,28 +1,39 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import Header from './components/Header';
+import Footer from './components/Footer';
 import ChatPanel from './components/ChatPanel';
 import Sidebar from './components/Sidebar';
 import NewsDashboard from './components/NewsDashboard';
 import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
-import React from 'react';
 import { GeminiGenerateResponse } from './lib/geminiClient';
+import { Shortcut } from './types';
+
+// This is the global climate news shortcut just copy-pasted. Should eventually do this more tactfully.
+const DEFAULT_SHORTCUT = {
+    "name": "Latest Climate Headlines Weekly",
+    "description": "Read the top stories from leading global and US climate, environment, and sustainability sources over the past week.",
+    "prompt": "Tell me about the latest major climate, environment, and sustainability news from around the world for the past 7 days.",
+    "icon": "/earth.png",
+    "instructions": "Search the web for the latest news published from the following sources: Grist, Canary Media, Inside Climate News, Guardian Climate, NYT Climate, Carbon Brief."
+}
 
 export default function App() {
-  const [selected, setSelected] = React.useState<null | { name: string; prompt: string; icon?: string }>(null);
-  const [newsData, setNewsData] = React.useState<GeminiGenerateResponse | null>(null);
-  const [streamingText, setStreamingText] = React.useState<string>('');
-  const [isStreaming, setIsStreaming] = React.useState<boolean>(false);
-  const [isCached, setIsCached] = React.useState<boolean>(false);
-  const [cacheTimestamp, setCacheTimestamp] = React.useState<number | null>(null);
-  const chatPanelRef = React.useRef<{ runAgain: () => void } | null>(null);
-  const [isDark, setIsDark] = React.useState(() => {
+  const chatPanelRef = useRef<{ runAgain: () => void } | null>(null);
+  const [selected, setSelected] = useState<Shortcut>(DEFAULT_SHORTCUT);
+  const [newsData, setNewsData] = useState<GeminiGenerateResponse | null>(null);
+  const [streamingText, setStreamingText] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [isCached, setIsCached] = useState<boolean>(false);
+  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
+  const [isDark, setIsDark] = useState(() => {
     // Check for saved theme or default to dark
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : true;
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Apply theme to document
     if (isDark) {
       document.documentElement.setAttribute('data-theme', 'dark-earth');
@@ -33,8 +44,15 @@ export default function App() {
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
-  const handleShortcutSelect = (s: { name: string; prompt: string; icon?: string }) => {
-    setSelected({ name: s.name, prompt: s.prompt, icon: s.icon });
+  const handleShortcutSelect = (shortcut: Shortcut) => {
+    const newShortcut = {
+      name: shortcut.name,
+      description: shortcut.description,
+      prompt: shortcut.prompt,
+      icon: shortcut.icon,
+      instructions: shortcut.instructions
+    }
+    setSelected(newShortcut);
     setNewsData(null);
     setIsCached(false);
     setCacheTimestamp(null);
@@ -60,9 +78,7 @@ export default function App() {
           </section>
           <ChatPanel 
             ref={chatPanelRef}
-            preset={selected?.prompt}
-            shortcutIcon={selected?.icon}
-            shortcutName={selected?.name}
+            shortcut={selected}
             onResponse={(data, fromCache = false, timestamp) => {
               setNewsData(data);
               setIsCached(fromCache);
@@ -93,15 +109,13 @@ export default function App() {
           <Outlet />
         </div>
       </main>
-      <footer 
-        className="p-4 flex items-center justify-between"
-        style={{ color: 'rgb(var(--text-muted))' }}
-      >
-        <span>
-          © {new Date().getFullYear()} NewsDash
-        </span>
+      
+      {/* Floating Usage Indicator */}
+      <div className="fixed bottom-16 right-4 bg-[rgb(var(--bg-secondary))] text-[rgb(var(--text-secondary))] rounded-lg shadow-lg px-2 py-1 border border-gray-200 dark:border-gray-700">
         <UsageIndicator />
-      </footer>
+      </div>
+      
+      <Footer />
     </div>
   );
 }

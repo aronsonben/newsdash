@@ -56,8 +56,8 @@ export default function Header({ isDark, toggleTheme }: HeaderProps) {
         >
           Concourse
         </a>
-        <span style={{ color: 'rgb(var(--text-muted))' }}>·</span>
-        <a 
+        {/* <span style={{ color: 'rgb(var(--text-muted))' }}>·</span> */}
+        {/* <a 
           href="https://youtube.com/@ConcourseFM" 
           target="_blank" 
           rel="noreferrer" 
@@ -75,7 +75,7 @@ export default function Header({ isDark, toggleTheme }: HeaderProps) {
           style={{ color: 'rgb(var(--accent))' }}
         >
           Contact
-        </a>
+        </a> */}
       </div>
     </header>
   );

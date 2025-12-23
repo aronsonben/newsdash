@@ -1,12 +1,6 @@
 import React from 'react';
+import { Shortcut } from 'src/types';
 import shortcuts from '../../shortcuts.json';
-
-type Shortcut = {
-  name: string;
-  description?: string;
-  prompt: string;
-  icon?: string;
-};
 
 export default function MobileShortcutTray({ onSelect }: { onSelect: (s: Shortcut) => void }) {
   const items = (shortcuts as Shortcut[]).filter((s) => !!s?.name && !!s?.prompt);

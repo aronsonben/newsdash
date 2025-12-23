@@ -15,6 +15,7 @@ export function isGeminiConfigured() {
 
 export type GeminiGenerateRequest = {
   prompt: string;
+  instructions: string;
   modelName?: string;
   temperature?: number;
   maxOutputTokens?: number;
@@ -214,6 +215,7 @@ export async function generateWithGemini(req: GeminiGenerateRequest): Promise<Ge
 }
 
 export async function generateStreamWithGemini(req: GeminiGenerateRequest): Promise<GeminiStreamResponse> {
+  // First check that Gemini is configured in the backend. If not, return an error.
   if (!isGeminiConfigured()) {
     const errorText = `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`;
     const errorResponse: GeminiGenerateResponse = {
@@ -230,7 +232,7 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
     };
   }
 
-  // Check daily usage limit (only in production)
+  // Check daily usage limit (only in production). TODO: limit requests further
   if (hasReachedDailyLimit()) {
     const errorText = `Daily API limit reached. You can make 20 requests per day. Please try again tomorrow.`;
     const errorResponse: GeminiGenerateResponse = {
@@ -247,16 +249,41 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
     };
   }
 
+  // Get prompt info from request:
+  const prompt = req.prompt;
+  const instructions = req.instructions;
+
+
+  // Call Gemini service
   const ai = new GoogleGenAI({apiKey: apiKey});
   const groundingTool = {
     googleSearch: {},
   };
   let systemInstruction: string = ""; 
-  systemInstruction = "You are performing web search-based research for the latest news stories related to the prmopt topic. " + 
-    "For each news topic found, generate a one-sentence executive summary, a 4-5 sentence paragraph summarizing relevant articles, a one-line list of sources used, and one-line list of key stakeholers." + 
-    "Use sections, headings, and emojis to separate topics for the sake of readibility." +
-    "Your audience is an educated professional with advanced knowledge of a given topic. They are a leader within the given industry and want to stay on top of key topics.";
-    
+  systemInstruction = `
+    You are performing web search-based research for the latest news stories related to the prompt topic.
+    If sources are mentioned, find the websites for those publications and use those. 
+    Otherwise, first look for the most authoritative sources for each topic.
+
+    Your research strategy should be as follows:
+    1. Perform up to three web search queries related to the prompt topic
+    2. Read 4-5 of the latest articles from a handful of sources
+    3. Extract the most relevant themes across all articles
+    4. Synthesize the themes into topics tied to each source
+
+    Your response should follow these guidelines:
+    - Use sections, headings, and emojis to separate themes
+    - Provide a 1-2 sentence executive summary for each theme
+    - Provide up to two paragraphs summarizing the theme
+    - Return a maximum of five themes so as to not overwhelm the user
+
+    Your audience:
+    - Your audience is an educated professional with advanced knowledge of a given topic
+    - They are a leader within the given industry and want to stay on top of key topics
+
+    Sources: ${instructions}
+  `;
+
    const config = {
     tools: [groundingTool],
     systemInstruction: systemInstruction,
@@ -266,7 +293,7 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
     // Make streaming call to Gemini API with Grounding with Google Search
     const response = await ai.models.generateContentStream({
       model: "gemini-2.5-flash",
-      contents: req.prompt,
+      contents: prompt,
       config,
     });
 
