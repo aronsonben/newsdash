@@ -15,7 +15,7 @@ export function isGeminiConfigured() {
 
 export type GeminiGenerateRequest = {
   prompt: string;
-  instructions: string;
+  instructions?: string;
   modelName?: string;
   temperature?: number;
   maxOutputTokens?: number;
