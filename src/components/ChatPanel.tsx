@@ -141,55 +141,84 @@ const ChatPanel = React.forwardRef<
   const iconSrc = shortcut.icon ? (shortcut.icon.startsWith('/') ? shortcut.icon : `/${shortcut.icon}`) : undefined;
 
   return (
-    <section className="grid p-4 rounded-xl theme-chat-bg">
-      {shortcut.name && (
-        <p className="font-normal theme-text-secondary">
-          {shortcut.name}
-        </p>
-      )}
-      <div className="flex flex-col gap-3 items-end">
-        <div className="flex-1">
-          {/* Pre-defined prompt header */}
-          <div className="flex items-center gap-4">
+    <section className="p-3 rounded-xl theme-chat-bg">
+      <div className="flex flex-col gap-3">
+        {/* Topic header with icon */}
+        {shortcut.name && (
+          <div className="flex items-center gap-2">
             {iconSrc && (
               <img
                 src={iconSrc}
-                alt="Selected shortcut"
-                className="h-20 w-20 rounded-2xl border border-[rgb(var(--border))] object-cover shadow-sm"
+                alt=""
+                className="h-8 w-8 rounded-lg object-cover shadow-sm"
+                style={{ borderColor: 'rgb(var(--border))', borderWidth: '1px' }}
               />
             )}
-            <div className="flex-1">
-              {input ? 
-                (<p className="md:text-xl font-semibold my-4">{input}</p>) : 
-                (<p className="font-bold my-4">Choose a prompt to get started.</p>)
-              }
-            </div>
+            <h2 
+              className="text-sm font-semibold font-grotesk"
+              style={{ color: 'rgb(var(--text-secondary))' }}
+            >
+              {shortcut.name}
+            </h2>
           </div>
-        </div>
-        <button
-          onClick={() => onSend()}
-          disabled={!canSend}
-          className="px-6 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 shadow-sm hover:shadow-md"
+        )}
+        {/* Read-only prompt textarea */}
+        <textarea
+          ref={textareaRef}
+          value={input}
+          readOnly
+          placeholder="Choose a topic from shortcuts..."
+          title="Prompt editing is not available at this time"
+          className="w-full px-4 py-3 rounded-lg border resize-none transition-all duration-200 cursor-not-allowed focus:outline-none focus:ring-2 font-grotesk"
+          disabled={true}
           style={{
-            minHeight: '34px',
-            backgroundColor: canSend ? 'rgb(var(--button-primary))' : 'rgb(var(--button-primary-disabled))',
-            color: canSend ? 'white' : 'rgba(255, 255, 255, 0.7)',
-            cursor: canSend ? 'pointer' : 'not-allowed'
+            backgroundColor: 'bg-[rgb(239,235,230)]',
+            borderColor: 'rgb(var(--border))',
+            color: 'rgb(var(--text-muted))',
+            minHeight: '44px',
+            maxHeight: '200px',
           }}
-          onMouseEnter={(e) => {
-            if (canSend) {
-              e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (canSend) {
-              e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))';
-            }
-          }}
-          title={hasReachedDailyLimit() ? 'Daily API limit reached (20/20)' : loading ? 'Sending...' : 'Send message'}
-        >
-          {loading ? 'Sending…' : hasReachedDailyLimit() ? 'Limit Reached' : 'Send'}
-        </button>
+        />
+        {/* Edit and Send buttons */}
+        <div className="flex justify-end gap-2">
+          <button
+            disabled
+            className="px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 shadow-sm"
+            style={{
+              minHeight: '40px',
+              backgroundColor: 'rgb(var(--button-primary-disabled))',
+              color: 'rgba(255, 255, 255, 0.7)',
+              cursor: 'not-allowed'
+            }}
+            title="Prompt editing is not available at this time"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onSend()}
+            disabled={!canSend}
+            className="px-6 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 shadow-sm hover:shadow-md"
+            style={{
+              minHeight: '40px',
+              backgroundColor: canSend ? 'rgb(var(--button-primary))' : 'rgb(var(--button-primary-disabled))',
+              color: canSend ? 'white' : 'rgba(255, 255, 255, 0.7)',
+              cursor: canSend ? 'pointer' : 'not-allowed'
+            }}
+            onMouseEnter={(e) => {
+              if (canSend) {
+                e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (canSend) {
+                e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))';
+              }
+            }}
+            title={hasReachedDailyLimit() ? 'Daily API limit reached (20/20)' : loading ? 'Sending...' : 'Send message (⌘↵)'}
+          >
+            {loading ? 'Sending…' : hasReachedDailyLimit() ? 'Limit Reached' : 'Send'}
+          </button>
+        </div>
       </div>
     </section>
   );

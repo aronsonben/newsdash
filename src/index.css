@@ -21,10 +21,13 @@
   --dashboard-bg: 237 232 227;
   --dashboard-accent: 139 115 85;
   
-  /* Blue button colors */
-  --button-primary: 37 99 235;
-  --button-primary-hover: 29 78 216;
-  --button-primary-disabled: 147 197 253;
+  /* Earthtone button colors */
+  --button-primary: 139 111 78;      /* Earth brown - warm, natural */
+  --button-primary-hover: 115 91 64; /* Darker earth brown */
+  --button-primary-disabled: 212 196 176; /* Muted beige */
+  --button-secondary: 160 82 45;     /* Sienna brown - secondary actions */
+  --button-secondary-hover: 139 69 19; /* Darker saddle brown */
+  --button-secondary-disabled: 212 196 176; /* Muted beige */
 }
 
 [data-theme="dark"] {
@@ -48,10 +51,13 @@
   --dashboard-bg: 23 26 24;
   --dashboard-accent: 139 196 178;
   
-  /* Blue button colors */
-  --button-primary: 59 130 246;
-  --button-primary-hover: 37 99 235;
-  --button-primary-disabled: 30 64 175;
+  /* Earthtone button colors */
+  --button-primary: 127 179 163;     /* Moss green accent */
+  --button-primary-hover: 107 142 127; /* Darker moss green */
+  --button-primary-disabled: 42 48 41; /* Muted border color */
+  --button-secondary: 139 196 178;   /* Light accent - secondary actions */
+  --button-secondary-hover: 127 179 163; /* Darker moss green */
+  --button-secondary-disabled: 42 48 41; /* Muted border color */
 }
 
 /* Earthtone Dark Theme Palette */

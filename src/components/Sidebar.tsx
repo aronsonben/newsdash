@@ -3,7 +3,7 @@ import { Shortcut } from 'src/types';
 import shortcuts from '../../shortcuts.json';
 import { cacheManager } from '../lib/cacheManager';
 
-export function Sidebar({ onSelect, refreshCache }: { onSelect: (s: Shortcut) => void; refreshCache?: number }) {
+export function Sidebar({ onSelect, refreshCache, selectedId }: { onSelect: (s: Shortcut) => void; refreshCache?: number; selectedId?: string }) {
   const items = (shortcuts as Shortcut[]).filter((s) => !!s?.name && !!s?.prompt);
   const [cachedIds, setCachedIds] = useState<Set<string>>(new Set());
 
@@ -41,6 +41,7 @@ export function Sidebar({ onSelect, refreshCache }: { onSelect: (s: Shortcut) =>
             .toUpperCase();
 
           const isCached = item.id && cachedIds.has(item.id);
+          const isSelected = item.id === selectedId;
 
           return (
             <button
@@ -48,17 +49,27 @@ export function Sidebar({ onSelect, refreshCache }: { onSelect: (s: Shortcut) =>
               onClick={() => onSelect(item)}
               title={item.description ?? item.prompt}
               aria-label={item.name}
-              className="flex items-center justify-center lg:justify-start gap-3 w-full border theme-border rounded-lg p-2 lg:p-3 cursor-pointer theme-bg-primary hover:theme-bg-secondary hover:shadow-sm transition-all duration-200 group relative"
+              aria-pressed={isSelected}
+              className="flex items-center justify-center lg:justify-start gap-3 w-full border rounded-lg p-2 lg:p-3 cursor-pointer hover:shadow-sm transition-all duration-200 group relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--sidebar-accent))] focus-visible:ring-offset-1"
+              style={{
+                backgroundColor: isSelected ? 'rgb(var(--sidebar-bg))' : 'rgb(var(--bg-primary))',
+                borderColor: isSelected ? 'rgb(var(--sidebar-accent))' : 'rgb(var(--border))',
+                borderWidth: isSelected ? '2px' : '1px'
+              }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgb(var(--bg-secondary))';
-                e.currentTarget.style.borderColor = 'rgb(var(--sidebar-accent))';
+                if (!isSelected) {
+                  e.currentTarget.style.backgroundColor = 'rgb(var(--bg-secondary))';
+                  e.currentTarget.style.borderColor = 'rgb(var(--sidebar-accent))';
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgb(var(--bg-primary))';
-                e.currentTarget.style.borderColor = 'rgb(var(--border))';
+                if (!isSelected) {
+                  e.currentTarget.style.backgroundColor = 'rgb(var(--bg-primary))';
+                  e.currentTarget.style.borderColor = 'rgb(var(--border))';
+                }
               }}
             >
-              <span className="flex items-center justify-center h-10 w-10 md:min-w-20 md:min-h-20 rounded-xl overflow-hidden bg-white/10">
+              <span className="flex items-center justify-center h-10 w-10 rounded-xl overflow-hidden bg-white/10 shrink-0">
                 {iconSrc ? (
                   <img src={iconSrc} alt={item.name} className="h-full w-full object-cover" />
                 ) : (

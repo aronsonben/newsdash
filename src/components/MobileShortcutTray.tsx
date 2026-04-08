@@ -2,7 +2,7 @@ import React from 'react';
 import { Shortcut } from 'src/types';
 import shortcuts from '../../shortcuts.json';
 
-export default function MobileShortcutTray({ onSelect, refreshCache }: { onSelect: (s: Shortcut) => void; refreshCache?: number }) {
+export default function MobileShortcutTray({ onSelect, refreshCache, selectedId }: { onSelect: (s: Shortcut) => void; refreshCache?: number; selectedId?: string }) {
   const items = (shortcuts as Shortcut[]).filter((s) => !!s?.name && !!s?.prompt);
 
   return (
@@ -20,13 +20,21 @@ export default function MobileShortcutTray({ onSelect, refreshCache }: { onSelec
             .slice(0, 2)
             .toUpperCase();
 
+          const isSelected = item.id === selectedId;
+
           return (
             <button
               key={item.name}
               onClick={() => onSelect(item)}
               aria-label={item.name}
+              aria-pressed={isSelected}
               title={item.description ?? item.prompt}
-              className="flex items-center justify-center shrink-0 max-w-16 max-h-16 rounded-2xl border theme-border bg-white/10 hover:max-w-17 hover:max-h-17 hover:theme-bg-secondary transition-all duration-300"
+              className="flex items-center justify-center shrink-0 max-w-16 max-h-16 rounded-2xl border bg-white/10 hover:max-w-17 hover:max-h-17 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--sidebar-accent))] focus-visible:ring-offset-1"
+              style={{
+                borderColor: isSelected ? 'rgb(var(--sidebar-accent))' : 'rgb(var(--border))',
+                borderWidth: isSelected ? '2px' : '1px',
+                backgroundColor: isSelected ? 'rgb(var(--sidebar-bg) / 0.3)' : 'rgba(255, 255, 255, 0.1)'
+              }}
             >
               {iconSrc ? (
               <img src={iconSrc} alt={item.name} className="h-full w-full object-cover rounded-xl" />

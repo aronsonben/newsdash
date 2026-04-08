@@ -33,7 +33,7 @@ export default function App() {
   const [isDark, setIsDark] = useState(() => {
     // Check for saved theme or default to dark
     const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : true;
+    return saved ? saved === 'dark' : false;
   });
 
   useEffect(() => {
@@ -101,13 +101,13 @@ export default function App() {
       }}
     >
       <Header isDark={isDark} toggleTheme={() => setIsDark(!isDark)} />
-      <MobileShortcutTray onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} />
+      <MobileShortcutTray onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
       <main className="flex-1 flex min-h-0">
-        <Sidebar onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} />
+        <Sidebar onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
         <div className="flex-1 p-4 max-w-[960px] mx-auto">
-          <section className="mb-4">
-            <p className="text-xs font-grotesk italic" style={{ color: 'rgb(var(--text-secondary))' }}>
-              Heyo! It's Ben from Concourse. Get some helpful summaries of the latest news in some interesting topics.
+          <section className="mb-2">
+            <p className="text-xs font-grotesk" style={{ color: 'rgb(var(--text-muted))' }}>
+              Latest news summaries on interesting topics.
             </p>
           </section>
           <ChatPanel 
@@ -134,7 +134,7 @@ export default function App() {
       </main>
       
       {/* Floating Usage Indicator */}
-      <div className="fixed bottom-16 right-4 bg-[rgb(var(--bg-secondary))] text-[rgb(var(--text-secondary))] rounded-lg shadow-lg px-2 py-1 border border-gray-200 dark:border-gray-700">
+      <div className="fixed bottom-16 right-4 rounded-lg shadow-lg px-2 py-1 border" style={{ backgroundColor: 'rgb(var(--bg-secondary))', color: 'rgb(var(--text-secondary))', borderColor: 'rgb(var(--border))' }}>
         <UsageIndicator />
       </div>
       

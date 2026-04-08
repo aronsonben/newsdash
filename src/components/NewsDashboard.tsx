@@ -173,10 +173,6 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
         className={`p-6 border ${isCached ? 'rounded-b-xl rounded-t-none border-t-0' : 'rounded-xl'}`}
         style={{ backgroundColor: 'rgb(var(--dashboard-bg))', borderColor: 'rgb(var(--border))' }}
       >
-        <div className="font-bold mb-4 flex items-center gap-2 text-[rgb(var(--text-primary))]">
-          <h3 className="text-2xl">{title ? `${title}` : 'News Dashboard'}</h3>
-        </div>
-
         {(streamingText || data?.text) && (
           <div 
             className="mb-6 p-5 rounded-xl border markdown-content shadow-sm"
@@ -214,14 +210,16 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
 
       {items.length === 0 ? (
         <div 
-          className="p-12 text-center text-lg italic font-grotesk rounded-xl border"
+          className="p-12 text-center rounded-xl border"
           style={{
             backgroundColor: 'rgb(var(--bg-primary))',
             borderColor: 'rgb(var(--border))',
-            color: 'rgb(var(--text-muted))'
+            color: 'rgb(var(--text-muted))',
+            borderStyle: 'dashed'
           }}
         >
-          Select a prompt to begin.
+          <p className="text-lg font-grotesk mb-1">← Select a topic from shortcuts to begin</p>
+          <p className="text-sm" style={{ color: 'rgb(var(--text-muted) / 0.7)' }}>Choose a shortcut or edit the prompt to get AI-powered news summaries</p>
         </div>
       ) : (
         <div 
