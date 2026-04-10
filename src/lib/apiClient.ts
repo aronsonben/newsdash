@@ -1,5 +1,4 @@
-import { getOpenRouter, isConfigured } from './openRouterClient';
-import { generateWithGemini, isGeminiConfigured } from './geminiClient';
+import { generateWithGemini, isGeminiConfigured, GeminiGenerateResponse } from './geminiClient';
 
 export type GenerateRequest = {
   prompt: string;
@@ -23,7 +22,6 @@ export const apiClient = {
     
     // Auto-select provider: prefer Gemini if configured, fall back to OpenRouter
     const useGemini = provider === 'gemini' || (provider === 'auto' && isGeminiConfigured());
-    const useOpenRouter = provider === 'openrouter' || (provider === 'auto' && !isGeminiConfigured() && isConfigured());
     
     // Use Gemini if selected/available
     if (useGemini) {
@@ -37,12 +35,6 @@ export const apiClient = {
       // Convert messages to a single prompt if provided
       let prompt = req.prompt;
       console.log("Using prompt: ", prompt);
-      // Commenting out as I try implementing Gemini
-      // if (req.messages?.length) {
-      //   prompt = req.messages
-      //     .map(msg => `${msg.role}: ${msg.content}`)
-      //     .join('\n\n');
-      // }
       
       return await generateWithGemini({
         prompt,
@@ -51,48 +43,6 @@ export const apiClient = {
       });
     }
     
-    // [DEPRECATED] Use OpenRouter if selected/available
-    // if (useOpenRouter) {
-    //   if (!isConfigured()) {
-    //     return { 
-    //       text: `OpenRouter not configured. Please set VITE_OPENROUTER_API_KEY environment variable.`,
-    //       searchQueries: []
-    //     };
-    //   }
-
-    //   const client = getOpenRouter();
-    //   // Build messages array; if user supplied full context use it, otherwise just current prompt.
-    //   const messages = req.messages?.length
-    //     ? req.messages
-    //     : [
-    //         {
-    //           role: 'user' as const,
-    //           content: req.prompt
-    //         }
-    //       ];
-
-    //   const completion = await client.chat.send({
-    //     model: req.model ?? 'openai/gpt-4o',
-    //     messages,
-    //     stream: false,
-    //     temperature: req.temperature ?? 0.2
-    //   } as any); // SDK types may evolve; keep flexible.
-
-    //   const choice = completion?.choices?.[0];
-    //   let content: string = '(empty response)';
-    //   const messageContent = choice?.message?.content;
-    //   if (typeof messageContent === 'string') {
-    //     content = messageContent;
-    //   } else if (Array.isArray(messageContent)) {
-    //     // Concatenate any text parts; ignore non-text for now.
-    //     content = messageContent
-    //       .map((part: any) => (part?.type === 'text' ? part.text : ''))
-    //       .filter(Boolean)
-    //       .join('\n') || content;
-    //   }
-    //   return { text: content, raw: completion };
-    // }
-    
     // No provider configured
     console.log("No provider configued.");
     return { 
@@ -100,4 +50,34 @@ export const apiClient = {
       searchQueries: []
     };
   }
+};
+
+// ─── Firestore cache (via Vercel serverless functions) ────────────────────────
+
+export type FirestoreReadResult =
+  | { status: 'fresh' | 'stale'; data: GeminiGenerateResponse; updatedAt: string; ageMs: number }
+  | { status: 'miss' | 'expired' };
+
+export const firestoreCache = {
+  async read(promptId: string): Promise<FirestoreReadResult> {
+    const res = await fetch(`/api/cache-read?promptId=${encodeURIComponent(promptId)}`);
+    if (!res.ok) {
+      console.error('[firestoreCache.read] API error', res.status);
+      return { status: 'miss' };
+    }
+    return res.json() as Promise<FirestoreReadResult>;
+  },
+
+  async save(promptId: string, data: GeminiGenerateResponse): Promise<boolean> {
+    const res = await fetch('/api/cache-write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ promptId, data }),
+    });
+    if (!res.ok) {
+      console.error('[firestoreCache.save] API error', res.status, await res.text());
+      return false;
+    }
+    return true;
+  },
 };

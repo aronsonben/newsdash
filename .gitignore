@@ -5,5 +5,8 @@ dist
 newsdash.code-workspace
 .DS_Store
 
+newsdash-concourse-1346d2a7aa82.json
+
 .github/personal-instructions.md
 .github/prompts.md
+.vercel

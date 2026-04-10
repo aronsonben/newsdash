@@ -3,6 +3,10 @@
 
 /* CSS Variables for themes - RGB values for Tailwind compatibility */
 :root {
+  /* Fonts */
+  --font-sans: 'Ubuntu Mono', 'Courier New', Courier, monospace;
+  --font-mono: 'Ubuntu Mono', 'Courier New', Courier, monospace;
+
   /* Light theme - RGB values */
   --bg-primary: 245 243 240; /* Light beige */
   --bg-secondary: 239 235 230;

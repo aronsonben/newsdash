@@ -39,7 +39,9 @@ const dummyItems: NewsItem[] = [
   }
 ];
 
-export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached, cacheTimestamp, onRunAgain }: { title?: string; data: GenerateResponse | null; streamingText?: string; isStreaming?: boolean; isCached?: boolean; cacheTimestamp?: number | null; onRunAgain?: () => void }) {
+export type CloudSaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached, cacheTimestamp, onRunAgain, onSaveToCloud, cloudSaveState = 'idle' }: { title?: string; data: GenerateResponse | null; streamingText?: string; isStreaming?: boolean; isCached?: boolean; cacheTimestamp?: number | null; onRunAgain?: () => void; onSaveToCloud?: () => void; cloudSaveState?: CloudSaveState }) {
   const items: NewsItem[] = React.useMemo(() => {
     if (!data) return [];
     if (!data.groundingMetadata?.groundingChunks) return [];
@@ -137,10 +139,12 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
     )
   };
 
+  const showActionBar = (isCached || (!!data && !isStreaming)) && (isCached || !!onSaveToCloud);
+
   return (
     <section className="mt-6">
-      {/* Cache notification bar */}
-      {isCached && (
+      {/* Action bar: shown when cached or when fresh data is ready to save */}
+      {showActionBar && (
         <div 
           className="flex items-center justify-between px-6 py-2 text-xs border-l border-r border-t rounded-t-xl"
           style={{
@@ -150,27 +154,50 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
           }}
         >
           <span className="flex items-center gap-2">
-            <span 
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
-            ></span>
-            Cached on {cacheTimestamp ? new Date(cacheTimestamp).toLocaleDateString() + ' at ' + new Date(cacheTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown date'}
+            {isCached ? (
+              <>
+                <span 
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
+                ></span>
+                Cached on {cacheTimestamp ? new Date(cacheTimestamp).toLocaleDateString() + ' at ' + new Date(cacheTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown date'}
+              </>
+            ) : (
+              <span>Fresh response</span>
+            )}
           </span>
-          {onRunAgain && (
-            <button
-              onClick={onRunAgain}
-              className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary"
-              title="Run this prompt again to get fresh results"
-            >
-              Run Again
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {onSaveToCloud && cloudSaveState !== 'saved' && (
+              <button
+                onClick={onSaveToCloud}
+                disabled={cloudSaveState === 'saving'}
+                className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                title={cloudSaveState === 'error' ? 'Save failed — click to retry' : 'Save this response to the cloud database'}
+              >
+                {cloudSaveState === 'saving' ? 'Saving…' : cloudSaveState === 'error' ? 'Retry Save ↑' : '↑ Save to Cloud'}
+              </button>
+            )}
+            {cloudSaveState === 'saved' && (
+              <span className="px-3 py-1 text-xs font-medium" style={{ color: 'rgb(var(--dashboard-accent))' }}>
+                ✓ Saved to Cloud
+              </span>
+            )}
+            {onRunAgain && (
+              <button
+                onClick={onRunAgain}
+                className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary"
+                title="Run this prompt again to get fresh results"
+              >
+                Run Again
+              </button>
+            )}
+          </div>
         </div>
       )}
       
       {/* Main dashboard content */}
       <div 
-        className={`p-6 border ${isCached ? 'rounded-b-xl rounded-t-none border-t-0' : 'rounded-xl'}`}
+        className={`p-6 border ${showActionBar ? 'rounded-b-xl rounded-t-none border-t-0' : 'rounded-xl'}`}
         style={{ backgroundColor: 'rgb(var(--dashboard-bg))', borderColor: 'rgb(var(--border))' }}
       >
         {(streamingText || data?.text) && (

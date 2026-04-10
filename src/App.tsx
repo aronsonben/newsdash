@@ -9,6 +9,8 @@ import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
 import { GeminiGenerateResponse } from './lib/geminiClient';
 import { cacheManager } from './lib/cacheManager';
+import { firestoreCache } from './lib/apiClient';
+import type { CloudSaveState } from './components/NewsDashboard';
 import { Shortcut } from './types';
 
 // This is the global climate news shortcut just copy-pasted. Should eventually do this more tactfully.
@@ -30,6 +32,7 @@ export default function App() {
   const [isCached, setIsCached] = useState<boolean>(false);
   const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
   const [cacheRefreshTrigger, setCacheRefreshTrigger] = useState(0);
+  const [cloudSaveState, setCloudSaveState] = useState<CloudSaveState>('idle');
   const [isDark, setIsDark] = useState(() => {
     // Check for saved theme or default to dark
     const saved = localStorage.getItem('theme');
@@ -58,29 +61,60 @@ export default function App() {
       instructions: shortcut.instructions
     }
     
+    // Reset cloud save state when switching shortcuts
+    setCloudSaveState('idle');
+
     // Update selected shortcut immediately (for ChatPanel)
     setSelected(selectedShortcut);
     
-    // Check cache and update if exists (for NewsDashboard)
+    // 1. Check localStorage first
     const cached = await cacheManager.getCachedWithTimestamp(selectedShortcut.id);
     if (cached) {
       setNewsData(cached.data);
       setIsCached(true);
       setCacheTimestamp(cached.timestamp);
-    } else {
-      // Clear previous data if no cache exists
-      setNewsData(null);
-      setIsCached(false);
-      setCacheTimestamp(null);
+      return;
     }
+
+    // 2. localStorage miss — check Firestore
+    try {
+      const firestoreResult = await firestoreCache.read(selectedShortcut.id);
+      if (firestoreResult.status === 'fresh' || firestoreResult.status === 'stale') {
+        const data = firestoreResult.data as GeminiGenerateResponse;
+        const timestamp = new Date(firestoreResult.updatedAt).getTime();
+        // Hydrate localStorage so next visit is instant
+        await cacheManager.setCached(selectedShortcut.id, data);
+        setNewsData(data);
+        setIsCached(true);
+        setCacheTimestamp(timestamp);
+        setCloudSaveState('saved'); // already in Firestore
+        return;
+      }
+    } catch (err) {
+      console.warn('[handleShortcutSelect] Firestore read failed:', err);
+    }
+
+    // 3. Both missed — clear previous data
+    setNewsData(null);
+    setIsCached(false);
+    setCacheTimestamp(null);
   };
 
   const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean = false, timestamp?: number) => {
     setNewsData(data);
     setIsCached(fromCache);
     setCacheTimestamp(timestamp || null);
+    // New response — allow saving to cloud
+    setCloudSaveState('idle');
     // Trigger cache indicator refresh in Sidebar
     setCacheRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleSaveToCloud = async () => {
+    if (!newsData || !selected) return;
+    setCloudSaveState('saving');
+    const success = await firestoreCache.save(selected.id, newsData);
+    setCloudSaveState(success ? 'saved' : 'error');
   };
 
   const handleStreamChunk = (text: string, isComplete: boolean) => {
@@ -104,7 +138,7 @@ export default function App() {
       <MobileShortcutTray onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
       <main className="flex-1 flex min-h-0">
         <Sidebar onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
-        <div className="flex-1 p-4 max-w-[960px] mx-auto">
+        <div className="flex-1 p-4 max-w-full md:max-w-240 mx-auto">
           <section className="mb-2">
             <p className="text-xs font-grotesk" style={{ color: 'rgb(var(--text-muted))' }}>
               Latest news summaries on interesting topics.
@@ -123,6 +157,8 @@ export default function App() {
             isStreaming={isStreaming} 
             isCached={isCached} 
             cacheTimestamp={cacheTimestamp}
+            onSaveToCloud={handleSaveToCloud}
+            cloudSaveState={cloudSaveState}
             onRunAgain={() => {
               if (chatPanelRef.current) {
                 chatPanelRef.current.runAgain();
