@@ -1,13 +1,9 @@
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { hasReachedDailyLimit, incrementUsage, isDevelopment } from './usageTracker';
 
 // Environment variables for Gemini API
 const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)
   ?? (import.meta.env as any).GEMINI_API_KEY;
-
-let genAI: GoogleGenAI | null = null;
-let model: GenerativeModel | null = null;
 
 export function isGeminiConfigured() {
   return Boolean(apiKey);

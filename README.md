@@ -123,7 +123,6 @@ The application supports multiple AI providers through a unified interface:
 - `src/components/NewsDashboard.tsx`: News display component
 - `src/lib/apiClient.ts`: Unified typed client with provider selection
 - `src/lib/geminiClient.ts`: Google Gemini with Search grounding
-- `src/lib/openRouterClient.ts`: OpenRouter integration (fallback)
 - `vite.config.ts`, `tsconfig.json`: Build configuration
 - `.eslintrc.cjs`, `.prettierrc.json`: Tooling configuration
 
