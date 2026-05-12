@@ -9,8 +9,7 @@ import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
 import { GeminiGenerateResponse } from './lib/geminiClient';
 import { firestoreCache } from './lib/apiClient';
-import type { CloudSaveState } from './components/NewsDashboard';
-import { CacheData, Shortcut } from './types';
+import { CacheData, Shortcut, CloudSaveState, FRESH_TTL_MS } from './types';
 import { useLocalStorage } from './services/useLocalStorage';
 
 const NEWSDASH_CACHE_KEY = "newsdash_prompt_cache";
@@ -45,6 +44,7 @@ export default function App() {
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : false;
   });
+  const [isFetching, setIsFetching] = useState<boolean>(false);
 
   // Clear stale content as soon as a new request starts so the skeleton
   // is never blocked by old streamingText / newsData values.
@@ -54,6 +54,12 @@ export default function App() {
       setNewsData(null);
     }
   }, [loading]);
+
+  // Auto-load cached data for the default shortcut on first mount
+  useEffect(() => {
+    handleShortcutSelect(DEFAULT_SHORTCUT);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Apply theme to document
@@ -87,54 +93,60 @@ export default function App() {
 
     // Update selected shortcut immediately (for ChatPanel)
     setSelected(selectedShortcut);
+
+    // Clear the NewsDashboard immediately
+    setNewsData(null);
+    setStreamingText('');
+    setIsFetching(true);
     
     // 1. Check localStorage first
     const cached = promptCache.find((entry) => entry.id === selectedShortcut.id);
 
     // If the cache object was found in localStorage, make sure it hasn't expired:
     if (cached) {
-      console.log(`[handleShortcutSelect] Found a cached object in localStorage for ${selectedShortcut.id} `, cached);
+      // console.log(`[handleShortcutSelect] Found a cached object in localStorage for ${selectedShortcut.id} `, cached);
       const expired = isExpired(new Date(cached.updatedAt).getTime());
 
       if (expired) {
-        console.log("[handleShortcutSelect] The cache has expired for: ", shortcut.id, ". Deleting...");
+        // console.log("[handleShortcutSelect] The cache has expired for: ", shortcut.id, ". Deleting...");
         setPromptCache((prev) => prev.filter((entry) => entry.id !== cached.id));
         setNewsData(null);
         setIsCached(false);
         setCacheTimestamp(null);
+        setIsFetching(false);
         return;
       } else {
-        console.log("[handleShortcutSelect] We found the cache object, updating the UI for: ", shortcut.id);
-        console.log("[handleShortcutSelect] Cache data & timestamp: ", cached.updatedAt, cached.data);
+        // console.log("[handleShortcutSelect] We found the cache object, updating the UI for: ", shortcut.id);
+        // console.log("[handleShortcutSelect] Cache data & timestamp: ", cached.updatedAt, cached.data);
         setNewsData(cached.data);
         setStreamingText(cached.data.textWithCitations);
         setIsCached(true);
         setCacheTimestamp(cached.updatedAt);
+        setIsFetching(false);
         return;
       }
     }
 
     // 2. Check Firestore for the object 
-    // -- (Why? it's possible localStorage is empty but the object was cached within the past 7 days elsewhere, maybe on another device, etc.)
-    // -- (Note: this could lead to issues down the line so keep an eye on this as we evolve)
     try {
       const firestoreResult = await firestoreCache.read(selectedShortcut.id);
       if (firestoreResult.status === 'expired') {
         console.log("[handleShortcutSelect] Fetched the cached object from the database, but it is expired. You should run it again for the latest news.");
+        setIsFetching(false);
         return;
       } else if (firestoreResult.status === 'fresh' || firestoreResult.status === 'stale') {
-        console.log("[handleShortcutSelect] Fetched the cached object from the database.");
+        // console.log("[handleShortcutSelect] Fetched the cached object from the database.");
         const data = firestoreResult.data;
         const timestamp = new Date(firestoreResult.updatedAt).getTime();
         // We found a fresh cache object in the database, it's just not in this user's localStorage.
         // Hydrate localStorage so next visit is instant
         setPromptCache([data, ...promptCache]);
-        // await cacheManager.setCached(selectedShortcut.id, data);
         setNewsData(data.data as GeminiGenerateResponse);
         setStreamingText(data.data.textWithCitations);
         setIsCached(true);
         setCacheTimestamp(new Date(firestoreResult.updatedAt).getTime());
         setCloudSaveState('saved'); // already in Firestore
+        setIsFetching(false);
         return;
       }
     } catch (err) {
@@ -146,10 +158,10 @@ export default function App() {
     setNewsData(null);
     setIsCached(false);
     setCacheTimestamp(null);
+    setIsFetching(false);
   };
 
   const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean = false, timestamp?: number) => {
-    console.log("[App][handleResponse] Handling response...", data);
     setNewsData(data);
     setIsCached(fromCache);
     setCacheTimestamp(timestamp || null);
@@ -167,7 +179,6 @@ export default function App() {
   };
 
   const handleStreamChunk = (text: string, isComplete: boolean) => {
-    console.log("[App][handleStreamChunk] Handling stream chunk: ", text);
     setStreamingText(text);
     setIsStreaming(!isComplete);
     if (isComplete) {
@@ -210,6 +221,7 @@ export default function App() {
             onRunAgain={() => setRunAgainTrigger(t => t + 1)}
             loading={loading}
             setLoading={setLoading}
+            isFetching={isFetching}
           />}
           <Outlet />
         </div>

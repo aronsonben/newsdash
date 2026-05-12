@@ -52,6 +52,17 @@ interface GeminiApiResponse {
   text?: string;
 }
 
+export type GeminiStreamChunk = {
+  text: string;
+  isComplete: boolean;
+  groundingMetadata?: GroundingMetadata;
+};
+
+export type GeminiStreamResponse = {
+  stream: AsyncIterableIterator<GeminiStreamChunk>;
+  getFullResponse: () => Promise<GeminiGenerateResponse>;
+};
+
 export type GeminiGenerateResponse = {
   text: string;
   textWithCitations: string;
@@ -84,6 +95,8 @@ export interface CacheData {
 
 // ––– Other Types ––––––––––––––––––––––––––––––
 
+export type CloudSaveState = 'idle' | 'saving' | 'saved' | 'error';
+
 export interface Shortcut {
   id: string;
   name: string; 
@@ -92,3 +105,8 @@ export interface Shortcut {
   icon: string;
   instructions: string;
 }
+
+
+// ––– Constants (ik, ik, should be elsewhere) ––––––––––––––––––––––––––––––
+export const FRESH_TTL_MS = 24 * 60 * 60 * 1000;      // < 24 h  → return immediately
+

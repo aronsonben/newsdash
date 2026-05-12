@@ -25,7 +25,6 @@ class CacheManager {
   }
 
   private getCache(): CacheStorage {
-    console.log('[cacheManager] Snagging the localStorage cache...');
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       return cached ? JSON.parse(cached) : {};

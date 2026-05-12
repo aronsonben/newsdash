@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
-import { GenerateResponse } from '../lib/apiClient';
-import { GeminiGenerateResponse, GroundingChunk, GroundingSupport } from 'src/types';
+import { GeminiGenerateResponse, GroundingChunk, CloudSaveState } from 'src/types';
+
+const FRESH_TTL_MS = 24 * 60 * 60 * 1000;      // < 24 h  → return immediately
 
 export type NewsItem = {
   source: string;
@@ -48,8 +49,6 @@ const segmentColors: string[] = [
   "oklch(94.13% 0.168 99.59)", // yellow-500
 ]
 
-export type CloudSaveState = 'idle' | 'saving' | 'saved' | 'error';
-
 interface NewsDashboardProps { 
   title?: string; 
   data: GeminiGenerateResponse | null; 
@@ -62,12 +61,14 @@ interface NewsDashboardProps {
   cloudSaveState?: CloudSaveState;
   loading: boolean;
   setLoading: (loading: boolean) => void;
+  isFetching?: boolean;
 }
 
-export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached, cacheTimestamp, onRunAgain, onSaveToCloud, cloudSaveState = 'idle', loading, setLoading }: NewsDashboardProps) {
+export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached, cacheTimestamp, onRunAgain, onSaveToCloud, cloudSaveState = 'idle', loading, setLoading, isFetching = false }: NewsDashboardProps) {
   const dialogRef = React.useRef<HTMLDialogElement>(null);
   const [selectedSegment, setSelectedSegment] = React.useState<string | null>(null);
   const [dialogPosition, setDialogPosition] = React.useState({ top: 0, left: 0 });
+  const [isSaveHovered, setIsSaveHovered] = React.useState<boolean>(false);
 
   // these are for handling the pop-up that appears in the citation segment view
   React.useEffect(() => {
@@ -91,14 +92,14 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
     setSelectedSegment(seg);
   };
 
+  // memoized citation items
   const items: NewsItem[] = React.useMemo(() => {
-    console.log("[NewsDashboard] Data updated! ", data);
+    // console.log("[NewsDashboard] Data updated! ", data);
     if (!data) return [];
     if (!data.groundingChunks) return [];
     if (!data.groundingSupports) return [];
     const groundingChunks = data.groundingChunks;
     const groundingSupports = data.groundingSupports;
-    // if (!data.groundingMetadata?.groundingChunks) return [];  // possibly get rid of this
 
     return groundingChunks.map((chunk: GroundingChunk, idx: number) => {
       const web = chunk.web;
@@ -205,6 +206,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
     )
   };
 
+  const isFreshCache = !!cacheTimestamp && (Date.now() - cacheTimestamp < FRESH_TTL_MS); // cached within past 24h
   const showActionBar = (isCached || (!!data && !isStreaming)) && (isCached || !!onSaveToCloud);
 
   return (
@@ -226,7 +228,19 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
                   className="w-1.5 h-1.5 rounded-full"
                   style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
                 ></span>
-                Cached on {cacheTimestamp ? new Date(cacheTimestamp).toLocaleDateString() + ' at ' + new Date(cacheTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown date'}
+                <span>
+                  Cached on
+                  <span
+                    className="p-1 rounded"
+                    style={{
+                      backgroundColor: isFreshCache && isSaveHovered ? 'rgb(var(--dashboard-accent))' : 'inherit',
+                      color: isFreshCache && isSaveHovered ? 'black' : 'inherit',
+                      transition: '0.33s ease'
+                    }}
+                  >
+                    {cacheTimestamp ? new Date(cacheTimestamp).toLocaleDateString() + ' at ' + new Date(cacheTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown date'}
+                  </span>
+                </span>
               </>
             ) : (
               <span>Fresh response</span>
@@ -234,14 +248,19 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
           </span>
           <div className="flex items-center gap-2">
             {onSaveToCloud && cloudSaveState !== 'saved' && (
-              <button
-                onClick={onSaveToCloud}
-                disabled={cloudSaveState === 'saving'}
-                className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                title={cloudSaveState === 'error' ? 'Save failed — click to retry' : 'Save this response to the cloud database'}
+              <span 
+                onMouseEnter={() => setIsSaveHovered(true)}
+                onMouseLeave={() => setIsSaveHovered(false)}
               >
-                {cloudSaveState === 'saving' ? 'Saving…' : cloudSaveState === 'error' ? 'Retry Save ↑' : '↑ Save to Cloud'}
-              </button>
+                <button
+                  onClick={onSaveToCloud}
+                  disabled={cloudSaveState === 'saving' || isFreshCache}
+                  className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={isFreshCache ? 'Already saved within the last 24 hours' : cloudSaveState === 'error' ? 'Save failed — click to retry' : 'Save this response to the cloud database'}
+                >
+                  {cloudSaveState === 'saving' ? 'Saving…' : cloudSaveState === 'error' ? 'Retry Save ↑' : '↑ Save to Cloud'}
+                </button>
+              </span>
             )}
             {cloudSaveState === 'saved' && (
               <span className="px-3 py-1 text-xs font-medium" style={{ color: 'rgb(var(--dashboard-accent))' }}>
@@ -346,6 +365,17 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
         )}
 
       {(!loading && !streamingText && !data && items.length === 0) ? (
+        isFetching ? (
+          <div className="p-12 flex justify-center items-center">
+            <span 
+              className="w-6 h-6 rounded-full border-2 animate-spin"
+              style={{
+                borderColor: 'rgb(var(--dashboard-accent))',
+                borderTopColor: 'transparent'
+              }}
+            />
+          </div>
+        ) : (
         <div 
           className="p-12 text-center rounded-xl border"
           style={{
@@ -358,6 +388,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
           <p className="text-lg font-grotesk mb-1">← Select a topic from shortcuts to begin</p>
           <p className="text-sm" style={{ color: 'rgb(var(--text-muted) / 0.7)' }}>Choose a shortcut or edit the prompt to get AI-powered news summaries</p>
         </div>
+        )
       ) : (
         <div 
           className="overflow-x-auto rounded-xl border"

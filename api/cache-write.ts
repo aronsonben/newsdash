@@ -5,7 +5,7 @@ import { getFirestore, collection, getDocs, Firestore, doc, getDoc, setDoc, Time
 import { CacheData } from '../src/types';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCDapuZAlEepBaM6uXwnJCcGd3p8uUYteA",
+  apiKey: process.env.FIREBASE_BROWSER_API_KEY,
   authDomain: "newsdash-concourse.firebaseapp.com",
   projectId: "newsdash-concourse",
   storageBucket: "newsdash-concourse.firebasestorage.app",

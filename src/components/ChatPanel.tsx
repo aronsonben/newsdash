@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse, GeminiStreamResponse } from '../lib/geminiClient';
 import { hasReachedDailyLimit, getUsageInfo } from '../lib/usageTracker';
-// import { cacheManager } from '../lib/cacheManager';
 import { CacheData, Shortcut } from 'src/types';
 import { Timestamp } from 'firebase/firestore';
 
@@ -92,23 +91,30 @@ function ChatPanel({ shortcut, promptCache, setPromptCache, onResponse, onStream
       // Get the full response with citations when streaming completes
       const fullResponse = await streamResponse.getFullResponse();
 
-      const newPromptCache: CacheData = {
-        id: promptId,
-        data: fullResponse,
-        updatedAt: Timestamp.now().toMillis()
-      }
-      
-      // Cache the response for future use
-      setPromptCache([newPromptCache, ...promptCache]);
+      // Update the prompt cache by either updating the existing one or adding a new one
+      setPromptCache((prev) => {
+        const now = Timestamp.now().toMillis();
+        const existing = prev.find((entry) => entry.id === promptId);
+
+        if (existing) {
+          const updated = { ...existing, data: fullResponse, updatedAt: now };
+          return [updated, ...prev.filter((entry) => entry.id !== promptId)];
+        }
+
+        const newPromptCache: CacheData = {
+          id: promptId,
+          data: fullResponse,
+          updatedAt: now,
+        };
+        return [newPromptCache, ...prev];
+      });
       
       // Send final response to NewsDashboard
       if (onStreamChunk) {
-        console.log("[ChatPanel] Setting final stream chunk", );
         onStreamChunk(fullResponse.textWithCitations, true);
       }
       
       if (onResponse) {
-        console.log("[ChatPanel] Handling final response", );
         onResponse(fullResponse, false); // false indicates fresh from API
       }
     } catch (e: any) {

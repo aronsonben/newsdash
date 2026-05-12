@@ -91,7 +91,7 @@ export default function Header({ isDark, toggleTheme }: HeaderProps) {
             className="font-light font-mono text-xs italic pb-1"
             style={{ color: 'rgb(var(--text-primary))' }}
           >
-            by <a href="https://concourse.codes" target="_blank" className="underline decoration-[rgba(var(--border))] underline-offset-2">The Concourse</a>
+            by <a href="https://concourse.codes" target="_blank" className="underline decoration-[rgba(var(--border))] underline-offset-2">Concourse Codes</a>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
-import { CacheData } from 'src/types';
-import { generateWithGemini, isGeminiConfigured, GeminiGenerateResponse } from './geminiClient';
+import { CacheData, GeminiStreamResponse } from 'src/types';
+import { generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse } from './geminiClient';
 
 export type GenerateRequest = {
   prompt: string;
@@ -18,37 +18,53 @@ export type GenerateResponse = {
 };
 
 export const apiClient = {
-  async generate(req: GenerateRequest): Promise<GenerateResponse> {
-    const provider = req.provider ?? 'auto';
-    
-    // Auto-select provider: prefer Gemini if configured, fall back to OpenRouter
-    const useGemini = provider === 'gemini' || (provider === 'auto' && isGeminiConfigured());
-    
-    // Use Gemini if selected/available
-    if (useGemini) {
+  async generate(req: GenerateRequest): Promise<GeminiStreamResponse> {
+    // ── Local dev: call Gemini directly (VITE_GEMINI_API_KEY stays on your machine) ──
+    if (import.meta.env.DEV) {
       if (!isGeminiConfigured()) {
-        return { 
-          text: `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`,
-          searchQueries: []
+        const errorText = `Gemini not configured. Please set VITE_GEMINI_API_KEY in .env.local for local development.`;
+        const errorResponse: GeminiGenerateResponse = { text: errorText, textWithCitations: errorText, searchQueries: [] };
+        return {
+          stream: (async function* () { yield { text: errorText, isComplete: true }; })(),
+          getFullResponse: async () => errorResponse,
         };
       }
-      
-      // Convert messages to a single prompt if provided
-      let prompt = req.prompt;
-      console.log("Using prompt: ", prompt);
-      
-      return await generateWithGemini({
-        prompt,
+      console.log('[dev] Calling Gemini directly with prompt:', req.prompt);
+      return generateStreamWithGemini({
+        prompt: req.prompt,
         temperature: req.temperature ?? 0.7,
-        modelName: req.model ?? 'gemini-2.5-flash'
+        modelName: req.model ?? 'gemini-2.5-flash',
       });
     }
-    
-    // No provider configured
-    console.log("No provider configued.");
-    return { 
-      text: `No AI provider configured. Please set VITE_GEMINI_API_KEY or VITE_OPENROUTER_API_KEY.`,
-      searchQueries: []
+
+    // ── Production: route through the Vercel serverless function ──
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: req.prompt,
+        model: req.model ?? 'gemini-2.5-flash',
+        temperature: req.temperature ?? 0.7,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = `API error ${res.status}: ${await res.text()}`;
+      const errorResponse: GeminiGenerateResponse = { text: errorText, textWithCitations: errorText, searchQueries: [] };
+      return {
+        stream: (async function* () { yield { text: errorText, isComplete: true }; })(),
+        getFullResponse: async () => errorResponse,
+      };
+    }
+
+    const data: GeminiGenerateResponse = await res.json();
+
+    // Wrap the full response in a GeminiStreamResponse so callers need no changes
+    return {
+      stream: (async function* () {
+        yield { text: data.text, isComplete: true, groundingMetadata: data.groundingMetadata };
+      })(),
+      getFullResponse: async () => data,
     };
   }
 };

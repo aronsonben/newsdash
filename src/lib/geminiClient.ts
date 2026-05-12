@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { hasReachedDailyLimit, incrementUsage, isDevelopment } from './usageTracker';
 
 // Environment variables for Gemini API
@@ -187,12 +187,12 @@ export async function generateWithGemini(req: GeminiGenerateRequest): Promise<Ge
     // Increment usage counter after successful API call
     incrementUsage();
 
-    console.log('Grounding metadata extracted:', {
-      chunksCount: groundingChunks.length,
-      supportsCount: groundingSupports.length,
-      queriesCount: webSearchQueries.length,
-      hasSearchEntryPoint: !!searchEntryPoint
-    });
+    // console.log('Grounding metadata extracted:', {
+    //   chunksCount: groundingChunks.length,
+    //   supportsCount: groundingSupports.length,
+    //   queriesCount: webSearchQueries.length,
+    //   hasSearchEntryPoint: !!searchEntryPoint
+    // });
 
     return {
       text,
@@ -362,12 +362,12 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
       // Increment usage counter after successful streaming API call
       incrementUsage();
 
-      console.log('Streaming grounding metadata extracted:', {
-        chunksCount: groundingChunks.length,
-        supportsCount: groundingSupports.length,
-        queriesCount: webSearchQueries.length,
-        hasSearchEntryPoint: !!searchEntryPoint
-      });
+      // console.log('Streaming grounding metadata extracted:', {
+      //   chunksCount: groundingChunks.length,
+      //   supportsCount: groundingSupports.length,
+      //   queriesCount: webSearchQueries.length,
+      //   hasSearchEntryPoint: !!searchEntryPoint
+      // });
 
       return {
         text: fullText,
