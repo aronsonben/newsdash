@@ -1,6 +1,6 @@
 # NewsDash
 
-A modern single page application built with Vite, React, and TypeScript. Powered by Google Gemini 2.0 Flash with Google Search grounding for AI-enhanced news discovery.
+A modern single page application built with Vite, React, and TypeScript. Powered by Google Gemini 2.5 Flash with Google Search grounding for AI-enhanced news discovery.
 
 ## Features
 
@@ -8,7 +8,6 @@ A modern single page application built with Vite, React, and TypeScript. Powered
 - React Router for SPA routing
 - ESLint + Prettier configured for TS/React
 - **Google Gemini 2.0 Flash with Google Search grounding** for real-time web-grounded AI responses
-- OpenRouter integration as fallback option
 - Typed API client with environment-based configuration
 - Minimal, clean UI with a header and chat panel
 
@@ -22,19 +21,7 @@ A modern single page application built with Vite, React, and TypeScript. Powered
    VITE_GEMINI_API_KEY=your_api_key_here
    ```
 
-The Gemini client uses the **gemini-2.0-flash-exp** model with Google Search grounding enabled, allowing it to search the web and provide up-to-date information with citations.
-
-### OpenRouter (Optional Fallback)
-
-If you want to use OpenRouter as a fallback:
-
-1. Get your API key from [OpenRouter](https://openrouter.ai/)
-2. Add to `.env.local`:
-   ```sh
-   VITE_OPENROUTER_API_KEY=your_api_key_here
-   ```
-
-The system automatically uses Gemini if configured, otherwise falls back to OpenRouter.
+The Gemini client uses the **gemini-2.5-flash** model with Google Search grounding enabled, allowing it to search the web and provide up-to-date information with citations.
 
 ## Setup
 
@@ -61,9 +48,6 @@ Copy `.env.local.example` or create `.env.local` with:
 ```sh
 # Google Gemini API Key (get from https://aistudio.google.com/apikey)
 VITE_GEMINI_API_KEY=your_gemini_api_key
-
-# OpenRouter API Key (optional fallback)
-VITE_OPENROUTER_API_KEY=your_openrouter_key
 
 VITE_SITE_URL=http://localhost:5173
 VITE_SITE_TITLE=NewsDash
@@ -102,11 +86,6 @@ The application supports multiple AI providers through a unified interface:
 - Real-time web search integration
 - Extracts search queries and grounding metadata
 - Configurable temperature, topP, topK parameters
-
-### OpenRouter Client (`src/lib/openRouterClient.ts`)
-- Fallback option for multiple LLM providers
-- Supports OpenAI, Anthropic, and other models
-- Retained for flexibility
 
 ### Unified API Client (`src/lib/apiClient.ts`)
 - Auto-selects best available provider (Gemini → OpenRouter → stub)

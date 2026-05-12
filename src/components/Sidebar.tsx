@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Shortcut } from 'src/types';
+import { CacheData, Shortcut } from 'src/types';
 import shortcuts from '../../shortcuts.json';
-import { cacheManager } from '../lib/cacheManager';
 
-export function Sidebar({ onSelect, refreshCache, selectedId }: { onSelect: (s: Shortcut) => void; refreshCache?: number; selectedId?: string }) {
-  const items = (shortcuts as Shortcut[]).filter((s) => !!s?.name && !!s?.prompt);
+export function Sidebar({ promptCache, onSelect, refreshCache, selectedId }: { promptCache: CacheData[]; onSelect: (s: Shortcut) => void; refreshCache?: number; selectedId?: string }) {
+  const shortcutItems = (shortcuts as Shortcut[]).filter((s) => !!s?.name && !!s?.prompt);
   const [cachedIds, setCachedIds] = useState<Set<string>>(new Set());
 
   // Check cache status for all shortcuts
   useEffect(() => {
+    // Go through all the shortcuts quickly and check if they've been cached
     const checkCacheStatus = async () => {
       const cached = new Set<string>();
-      
-      for (const item of items) {
+      for (const item of shortcutItems) {
         if (item.id) {
-          const cachedData = await cacheManager.getCached(item.id);
+          const cachedData = promptCache.find((entry) => entry.id === item.id);
           if (cachedData) {
             cached.add(item.id);
           }
@@ -22,16 +21,17 @@ export function Sidebar({ onSelect, refreshCache, selectedId }: { onSelect: (s: 
       }
       
       setCachedIds(cached);
-    };
+    }
 
     checkCacheStatus();
-  }, [refreshCache]); // Re-check when refreshCache changes
+  }, [promptCache]);
+
 
   return (
     <aside className="hidden md:flex flex-col gap-3 border-r theme-border theme-sidebar-bg px-4 py-5 shrink-0 w-20 lg:w-72">
       <div className="hidden lg:block font-semibold mb-1 theme-text-primary font-grotesk text-lg">Shortcuts</div>
       <div className="grid gap-2">
-        {items.map((item) => {
+        {shortcutItems.map((item) => {
           const iconSrc = item.icon ? (item.icon.startsWith('/') ? item.icon : `/${item.icon}`) : undefined;
           const initials = item.name
             .split(' ')

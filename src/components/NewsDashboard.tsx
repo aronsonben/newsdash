@@ -2,11 +2,12 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import { GenerateResponse } from '../lib/apiClient';
+import { GeminiGenerateResponse, GroundingChunk, GroundingSupport } from 'src/types';
 
 export type NewsItem = {
   source: string;
   date: string;
-  update: string;
+  updates: string[];
   impact: string;
   link: string;
   action: string;
@@ -16,7 +17,7 @@ const dummyItems: NewsItem[] = [
   {
     source: 'OpenAI Research',
     date: '2025-11-24',
-    update: 'New alignment technique improves small model safety.',
+    updates: ['New alignment technique improves small model safety.'],
     impact: 'Likely boosts reliability of edge deployments.',
     link: 'https://example.com/openai-news',
     action: 'Evaluate for roadmap integration.'
@@ -24,7 +25,7 @@ const dummyItems: NewsItem[] = [
   {
     source: 'Google DeepMind',
     date: '2025-11-23',
-    update: 'Paper on long-context training efficiency released.',
+    updates: ['Paper on long-context training efficiency released.'],
     impact: 'Lower inference costs for long docs.',
     link: 'https://example.com/deepmind-paper',
     action: 'Prototype longer context summarization.'
@@ -32,26 +33,90 @@ const dummyItems: NewsItem[] = [
   {
     source: 'Hugging Face',
     date: '2025-11-22',
-    update: 'New datasets for multi-modal QA announced.',
+    updates: ['New datasets for multi-modal QA announced.'],
     impact: 'Faster experimentation for image+text tasks.',
     link: 'https://example.com/hf-blog',
     action: 'Create spike on multi-modal Q&A.'
   }
 ];
 
+const segmentColors: string[] = [
+  "oklch(72.3% 0.219 149.579)",
+  "oklch(65.07% 0.186 259.89)", // blue-500
+  "oklch(62.88% 0.203 29.23)", // red-500
+  "oklch(75.13% 0.181 56.36)", // orange-500
+  "oklch(94.13% 0.168 99.59)", // yellow-500
+]
+
 export type CloudSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
-export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached, cacheTimestamp, onRunAgain, onSaveToCloud, cloudSaveState = 'idle' }: { title?: string; data: GenerateResponse | null; streamingText?: string; isStreaming?: boolean; isCached?: boolean; cacheTimestamp?: number | null; onRunAgain?: () => void; onSaveToCloud?: () => void; cloudSaveState?: CloudSaveState }) {
-  const items: NewsItem[] = React.useMemo(() => {
-    if (!data) return [];
-    if (!data.groundingMetadata?.groundingChunks) return [];
+interface NewsDashboardProps { 
+  title?: string; 
+  data: GeminiGenerateResponse | null; 
+  streamingText?: string; 
+  isStreaming?: boolean; 
+  isCached?: boolean; 
+  cacheTimestamp?: number | null; 
+  onRunAgain?: () => void; 
+  onSaveToCloud?: () => void; 
+  cloudSaveState?: CloudSaveState;
+  loading: boolean;
+  setLoading: (loading: boolean) => void;
+}
 
-    return data.groundingMetadata.groundingChunks.map((chunk: any) => {
+export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached, cacheTimestamp, onRunAgain, onSaveToCloud, cloudSaveState = 'idle', loading, setLoading }: NewsDashboardProps) {
+  const dialogRef = React.useRef<HTMLDialogElement>(null);
+  const [selectedSegment, setSelectedSegment] = React.useState<string | null>(null);
+  const [dialogPosition, setDialogPosition] = React.useState({ top: 0, left: 0 });
+
+  // these are for handling the pop-up that appears in the citation segment view
+  React.useEffect(() => {
+    if (selectedSegment && dialogRef.current) {
+      dialogRef.current.show();
+    } else if (dialogRef.current) {
+      dialogRef.current.close();
+    }
+  }, [selectedSegment]);
+
+  const handleSegmentClick = (seg: string, e: React.MouseEvent<HTMLDivElement>) => {
+    if (selectedSegment) {
+      setSelectedSegment(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDialogPosition({
+      top: rect.top + 25,
+      left: rect.left
+    });
+    setSelectedSegment(seg);
+  };
+
+  const items: NewsItem[] = React.useMemo(() => {
+    console.log("[NewsDashboard] Data updated! ", data);
+    if (!data) return [];
+    if (!data.groundingChunks) return [];
+    if (!data.groundingSupports) return [];
+    const groundingChunks = data.groundingChunks;
+    const groundingSupports = data.groundingSupports;
+    // if (!data.groundingMetadata?.groundingChunks) return [];  // possibly get rid of this
+
+    return groundingChunks.map((chunk: GroundingChunk, idx: number) => {
       const web = chunk.web;
+
+      // Filter out the grounding supports for this chunk
+      const supports = groundingSupports.filter((sup) =>
+        sup.groundingChunkIndices?.includes(idx)
+      );
+
+      // Then get the text segments
+      const segments: string[] = supports.flatMap((sup) =>
+        sup.segment?.text ? [sup.segment.text] : []
+      );
+
       return {
         source: web?.title ?? 'Unknown Source',
         date: '', 
-        update: web?.title ?? 'No title',
+        updates: segments,
         impact: '',
         link: web?.uri ?? '#',
         action: ''
@@ -84,6 +149,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
         href={href} 
         target="_blank" 
         rel="noopener noreferrer"
+        className="mr-1 text-[0.6rem] align-super"
         style={{ color: 'rgb(var(--accent))' }}
       >
         {children}
@@ -200,6 +266,50 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
         className={`p-6 border ${showActionBar ? 'rounded-b-xl rounded-t-none border-t-0' : 'rounded-xl'}`}
         style={{ backgroundColor: 'rgb(var(--dashboard-bg))', borderColor: 'rgb(var(--border))' }}
       >
+        {loading && !streamingText && (
+          <div
+            className="mb-6 p-5 rounded-xl border shadow-sm space-y-3"
+            style={{
+              backgroundColor: 'rgb(var(--bg-primary))',
+              borderColor: 'rgb(var(--border))',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <span
+                className="w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
+              />
+              <span className="text-xs font-grotesk animate-pulse" style={{ color: 'rgb(var(--text-muted))' }}>
+                Searching the web and generating summary…
+              </span>
+            </div>
+            {[100, 85, 92, 70, 88].map((w, i) => (
+              <div
+                key={i}
+                className="h-3 rounded-full animate-pulse"
+                style={{
+                  width: `${w}%`,
+                  backgroundColor: 'rgb(var(--bg-secondary))',
+                  animationDelay: `${i * 120}ms`
+                }}
+              />
+            ))}
+            <div className="pt-2 space-y-2">
+              {[60, 75].map((w, i) => (
+                <div
+                  key={i}
+                  className="h-3 rounded-full animate-pulse"
+                  style={{
+                    width: `${w}%`,
+                    backgroundColor: 'rgb(var(--bg-secondary))',
+                    animationDelay: `${(i + 5) * 120}ms`
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {(streamingText || data?.text) && (
           <div 
             className="mb-6 p-5 rounded-xl border markdown-content shadow-sm"
@@ -229,13 +339,13 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
                 skipHtml={false}
                 urlTransform={(url) => url}
               >
-                {data?.text || ''}
+                {data?.textWithCitations || ''}
               </ReactMarkdown>
             )}
           </div>
         )}
 
-      {items.length === 0 ? (
+      {(!loading && !streamingText && !data && items.length === 0) ? (
         <div 
           className="p-12 text-center rounded-xl border"
           style={{
@@ -255,7 +365,8 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
             backgroundColor: 'rgb(var(--bg-primary))',
             borderColor: 'rgb(var(--border))'
           }}
-        >
+        > 
+          {/* Citations Table */}
           <table className="min-w-full border-collapse">
             <thead 
               style={{
@@ -263,7 +374,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
               }}
             >
               <tr>
-                {['Source', 'Date', 'Update', 'Impact', 'Link', 'Action'].map((header) => (
+                {['Source', 'Update', 'Link'].map((header) => (
                   <th 
                     key={header}
                     className="text-left font-semibold text-sm p-4 border-b font-grotesk uppercase tracking-wide"
@@ -278,94 +389,113 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
-                <tr 
-                  key={idx} 
-                  className="align-top transition-colors duration-150"
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgb(var(--bg-secondary))';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <td 
-                    className="text-sm p-4 border-b"
-                    style={{
-                      color: 'rgb(var(--text-secondary))',
-                      borderColor: 'rgb(var(--border) / 0.5)'
-                    }}
-                  >
-                    {item.source}
-                  </td>
-                  <td 
-                    className="text-sm p-4 border-b"
-                    style={{
-                      color: 'rgb(var(--text-secondary))',
-                      borderColor: 'rgb(var(--border) / 0.5)'
-                    }}
-                  >
-                    {item.date}
-                  </td>
-                  <td 
-                    className="text-sm p-4 border-b"
-                    style={{
-                      color: 'rgb(var(--text-secondary))',
-                      borderColor: 'rgb(var(--border) / 0.5)'
-                    }}
-                  >
-                    {item.update}
-                  </td>
-                  <td 
-                    className="text-sm p-4 border-b"
-                    style={{
-                      color: 'rgb(var(--text-secondary))',
-                      borderColor: 'rgb(var(--border) / 0.5)'
-                    }}
-                  >
-                    {item.impact}
-                  </td>
-                  <td 
-                    className="text-sm p-4 border-b"
-                    style={{
-                      color: 'rgb(var(--text-secondary))',
-                      borderColor: 'rgb(var(--border) / 0.5)'
-                    }}
-                  >
-                    <a 
-                      href={item.link} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="inline-flex items-center px-3 py-1 text-sm text-white rounded-md transition-colors duration-200 font-medium"
-                      style={{
-                        backgroundColor: 'rgb(var(--button-primary))'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))';
-                      }}
-                    >
-                      View
-                    </a>
-                  </td>
-                  <td 
-                    className="text-sm p-4 border-b"
-                    style={{
-                      color: 'rgb(var(--text-secondary))',
-                      borderColor: 'rgb(var(--border) / 0.5)'
-                    }}
-                  >
-                    {item.action}
-                  </td>
+              {(items.length === 0) ? (
+                <tr key={0} className="w-full flex justify-center align-top py-2 text-sm text-[rgb(var(--text-secondary))] transition-colors duration-150">
+                  <td>No data</td>
                 </tr>
-              ))}
+              ) : (
+                items.map((item, idx) => (
+                  <tr 
+                    key={idx} 
+                    className="align-top transition-colors duration-150"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgb(var(--bg-secondary))';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <td 
+                      className="text-sm p-4 border-b text-[rgb(var(--text-secondary))] border-[rgb(var(--border))]/50"
+                    >
+                      <a href={item.link} target="_blank" className="">{item.source}</a>
+                    </td>
+                    <td 
+                      className="text-sm p-4 border-b text-[rgb(var(--text-secondary))] border-[rgb(var(--border))]/50"
+                    >
+                      <div className="w-full h-full flex gap-2">
+                      {item.updates.length > 0 && (
+                        item.updates.map((seg, idx) => (
+                          <div 
+                            key={idx}
+                            className="w-fit px-2 rounded text-[#141414] cursor-pointer hover:opacity-100 transition-opacity" 
+                            style={{ backgroundColor: segmentColors[idx] }}
+                            onClick={(e) => handleSegmentClick(seg, e)}
+                          >
+                            {idx}
+                          </div>
+                        ))
+                      )}
+                      </div>
+                    </td>
+                    <td 
+                      className="text-sm p-4 border-b text-[rgb(var(--text-secondary))] border-[rgb(var(--border))]/50"
+                    >
+                      <a 
+                        href={item.link} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="inline-flex items-center px-3 py-1 text-sm text-white rounded-md transition-colors duration-200 font-medium"
+                        style={{
+                          backgroundColor: 'rgb(var(--button-primary))'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))';
+                        }}
+                      >
+                        View
+                      </a>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       )}
       </div>
+
+      {/* Segment Popup Dialog */}
+      <dialog 
+        ref={dialogRef}
+        className="rounded-xl border"
+        style={{
+          backgroundColor: 'rgb(var(--bg-primary))',
+          borderColor: 'rgb(var(--border))',
+          color: 'rgb(var(--text-secondary))',
+          maxWidth: '500px',
+          padding: '0',
+          position: 'fixed',
+          top: `${dialogPosition.top}px`,
+          left: `${dialogPosition.left}px`,
+          margin: '0',
+          zIndex: 1000
+        }}
+        closedby='any'
+      >
+        <div className="flex flex-row-reverse items-start gap-2 p-5">
+          <button
+            onClick={() => setSelectedSegment(null)}
+            className="w-fit items-end justify-end px-2 py-1 text-xs rounded border transition-colors duration-200 font-medium cursor-pointer"
+            style={{
+              borderColor: 'rgb(var(--border))',
+              color: 'rgb(var(--text-secondary))'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgb(var(--bg-secondary) / 0.8)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgb(var(--bg-secondary))';
+            }}
+          >
+            x
+          </button>
+          <p className="text-xs leading-relaxed">{selectedSegment}</p>
+        </div>
+      </dialog>
     </section>
   );
 }

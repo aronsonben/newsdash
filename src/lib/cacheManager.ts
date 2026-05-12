@@ -14,6 +14,7 @@ const CACHE_KEY = 'newsdash_response_cache';
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 class CacheManager {
+  /** Function to hash the prompt to store in cache (Copilot-written) */
   private async hashPrompt(prompt: string): Promise<string> {
     // Create a consistent hash for the prompt
     const encoder = new TextEncoder();
@@ -24,6 +25,7 @@ class CacheManager {
   }
 
   private getCache(): CacheStorage {
+    console.log('[cacheManager] Snagging the localStorage cache...');
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       return cached ? JSON.parse(cached) : {};
@@ -49,7 +51,9 @@ class CacheManager {
   }
 
   private isExpired(timestamp: number): boolean {
-    return Date.now() - timestamp > CACHE_EXPIRY_MS;
+    const timeDifference = (Date.now() - timestamp);
+    const expired = timeDifference > CACHE_EXPIRY_MS;
+    return expired;
   }
 
   async getCached(prompt: string): Promise<GeminiGenerateResponse | null> {
@@ -62,6 +66,7 @@ class CacheManager {
     }
 
     if (this.isExpired(cached.timestamp)) {
+      console.log("[cacheManager] Cache is expired for prompt: ", prompt.substring(0, 50), ". Removing from cache.");
       // Remove expired entry
       delete cache[promptHash];
       this.setCache(cache);

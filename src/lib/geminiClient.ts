@@ -82,7 +82,7 @@ export type GeminiStreamResponse = {
 
 function addCitations(text: string, groundingMetadata?: GroundingMetadata): string {
     if (!groundingMetadata?.groundingSupports || !groundingMetadata?.groundingChunks) {
-        return text;
+      return text;
     }
 
     const supports = groundingMetadata.groundingSupports;
@@ -91,30 +91,35 @@ function addCitations(text: string, groundingMetadata?: GroundingMetadata): stri
 
     // Sort supports by end_index in descending order to avoid shifting issues when inserting.
     const sortedSupports = [...supports].sort(
-        (a: GroundingSupport, b: GroundingSupport) => 
-            (b.segment?.endIndex ?? 0) - (a.segment?.endIndex ?? 0)
+      (a: GroundingSupport, b: GroundingSupport) => 
+        (b.segment?.endIndex ?? 0) - (a.segment?.endIndex ?? 0)
     );
 
     for (const support of sortedSupports) {
-        const endIndex = support.segment?.endIndex;
-        if (endIndex === undefined || !support.groundingChunkIndices?.length) {
-            continue;
-        }
+      const endIndex = support.segment?.endIndex;
+      if (endIndex === undefined || !support.groundingChunkIndices?.length) {
+        continue;
+      }
 
-        const citationLinks = support.groundingChunkIndices
-            .map((i: number) => {
-                const uri = chunks[i]?.web?.uri;
-                if (uri) {
-                    return `[${i + 1}](${uri})`;
-                }
-                return null;
-            })
-            .filter((link): link is string => link !== null);
+      const citationLinks = support.groundingChunkIndices
+        .map((i: number) => {
+          const uri = chunks[i]?.web?.uri;
+          if (uri) {
+            return `[${i + 1}](${uri})`;
+          }
+          return null;
+        })
+        .filter((link): link is string => link !== null);
 
-        if (citationLinks.length > 0) {
-            const citationString = ` ${citationLinks.join(", ")}`;
-            modifiedText = modifiedText.slice(0, endIndex) + citationString + modifiedText.slice(endIndex);
+      if (citationLinks.length > 0) {
+        // Advance to the next word boundary so citations aren't inserted mid-word
+        let insertAt = endIndex;
+        while (insertAt < modifiedText.length && /\S/.test(modifiedText[insertAt - 1]) && /\S/.test(modifiedText[insertAt])) {
+          insertAt++;
         }
+        const citationString = ` ${citationLinks.join(", ")}`;
+        modifiedText = modifiedText.slice(0, insertAt) + citationString + modifiedText.slice(insertAt);
+      }
     }
 
     return modifiedText;
@@ -178,7 +183,7 @@ export async function generateWithGemini(req: GeminiGenerateRequest): Promise<Ge
 
     // Add citations to the text
     const textWithCitations = addCitations(text, groundingMetadata);
-
+    
     // Increment usage counter after successful API call
     incrementUsage();
 
@@ -276,6 +281,11 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
     Your audience:
     - Your audience is an educated professional with advanced knowledge of a given topic
     - They are a leader within the given industry and want to stay on top of key topics
+
+    Output Format:
+    - Output your response in Markdown format and cite every factual claim using inline Markdown hyperlinks
+    - For example, "Flooding in Texas[CITATION_NUM](URL)."
+    - Citations should always appear at the end of a sentence, after the period, and never in the middle of a word.
 
     Sources: ${instructions}
   `;

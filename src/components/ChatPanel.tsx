@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse } from '../lib/geminiClient';
+import { generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse, GeminiStreamResponse } from '../lib/geminiClient';
 import { hasReachedDailyLimit, getUsageInfo } from '../lib/usageTracker';
-import { cacheManager } from '../lib/cacheManager';
-import { Shortcut } from 'src/types';
+// import { cacheManager } from '../lib/cacheManager';
+import { CacheData, Shortcut } from 'src/types';
+import { Timestamp } from 'firebase/firestore';
 
-const ChatPanel = React.forwardRef<
-  { runAgain: () => void }, 
-  { shortcut: Shortcut,
+interface ChatPanelProps { 
+    shortcut: Shortcut,
+    promptCache: CacheData[],
+    setPromptCache: React.Dispatch<React.SetStateAction<CacheData[]>>,
+    forceRefreshTrigger?: number,
     onResponse?: ( 
       data: GeminiGenerateResponse, 
       fromCache?: boolean, 
@@ -15,15 +18,14 @@ const ChatPanel = React.forwardRef<
     onStreamChunk?: ( 
       text: string, 
       isComplete: boolean
-    ) => void }
-  > ( function ChatPanel({ 
-    shortcut,
-    onResponse, 
-    onStreamChunk 
-  }, ref) {
+    ) => void;
+    loading: boolean;
+    setLoading: (loading: boolean) => void;
+  }
+
+function ChatPanel({ shortcut, promptCache, setPromptCache, onResponse, onStreamChunk, forceRefreshTrigger, loading, setLoading }: ChatPanelProps) {
 
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canSend = useMemo(() => input.trim().length > 0 && !loading && !hasReachedDailyLimit(), [input, loading]);
@@ -45,7 +47,7 @@ const ChatPanel = React.forwardRef<
     
     try {
       if (!isGeminiConfigured()) {
-        const errorText = `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`;
+        const errorText = `Gemini not configured. Please set a Gemini API key`;
         if (onStreamChunk) {
           onStreamChunk(errorText, true);
         }
@@ -54,21 +56,21 @@ const ChatPanel = React.forwardRef<
 
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
-        const cachedResponseWithTimestamp = await cacheManager.getCachedWithTimestamp(promptId);
-        if (cachedResponseWithTimestamp) {
-          // Use cached response - simulate streaming for consistent UX
+        const cached = promptCache.find((entry) => entry.id === promptId);
+        if (cached) {
+          // Use cached response
           if (onStreamChunk) {
-            onStreamChunk(cachedResponseWithTimestamp.data.textWithCitations, true);
+            onStreamChunk(cached.data.textWithCitations, true);
           }
           if (onResponse) {
-            onResponse(cachedResponseWithTimestamp.data, true, cachedResponseWithTimestamp.timestamp); // true indicates from cache
+            onResponse(cached.data, true, cached.updatedAt); // true indicates from cache
           }
           return;
         }
       }
       
       // No cache hit or forced refresh - make API call with streaming
-      const streamResponse = await generateStreamWithGemini({
+      const streamResponse: GeminiStreamResponse = await generateStreamWithGemini({
         prompt: promptText,
         instructions: shortcut.instructions,
         temperature: 0.7,
@@ -89,16 +91,24 @@ const ChatPanel = React.forwardRef<
       
       // Get the full response with citations when streaming completes
       const fullResponse = await streamResponse.getFullResponse();
+
+      const newPromptCache: CacheData = {
+        id: promptId,
+        data: fullResponse,
+        updatedAt: Timestamp.now().toMillis()
+      }
       
       // Cache the response for future use
-      await cacheManager.setCached(promptId, fullResponse);
+      setPromptCache([newPromptCache, ...promptCache]);
       
       // Send final response to NewsDashboard
       if (onStreamChunk) {
+        console.log("[ChatPanel] Setting final stream chunk", );
         onStreamChunk(fullResponse.textWithCitations, true);
       }
       
       if (onResponse) {
+        console.log("[ChatPanel] Handling final response", );
         onResponse(fullResponse, false); // false indicates fresh from API
       }
     } catch (e: any) {
@@ -111,14 +121,11 @@ const ChatPanel = React.forwardRef<
     }
   }
 
-  // Expose runAgain method via ref
-  React.useImperativeHandle(ref, () => ({
-    runAgain: () => {
-      if (input.trim().length > 0) {
-        onSend(true); // Force refresh, skip cache
-      }
+  useEffect(() => {
+    if (forceRefreshTrigger && forceRefreshTrigger > 0 && input.trim().length > 0) {
+      onSend(true);
     }
-  }));
+  }, [forceRefreshTrigger]);
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -222,6 +229,6 @@ const ChatPanel = React.forwardRef<
       </div>
     </section>
   );
-});
+}
 
 export default ChatPanel;

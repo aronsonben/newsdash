@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -8,10 +8,13 @@ import NewsDashboard from './components/NewsDashboard';
 import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
 import { GeminiGenerateResponse } from './lib/geminiClient';
-import { cacheManager } from './lib/cacheManager';
 import { firestoreCache } from './lib/apiClient';
 import type { CloudSaveState } from './components/NewsDashboard';
-import { Shortcut } from './types';
+import { CacheData, Shortcut } from './types';
+import { useLocalStorage } from './services/useLocalStorage';
+
+const NEWSDASH_CACHE_KEY = "newsdash_prompt_cache";
+const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 // This is the global climate news shortcut just copy-pasted. Should eventually do this more tactfully.
 const DEFAULT_SHORTCUT = {
@@ -24,20 +27,33 @@ const DEFAULT_SHORTCUT = {
 }
 
 export default function App() {
-  const chatPanelRef = useRef<{ runAgain: () => void } | null>(null);
   const [selected, setSelected] = useState<Shortcut>(DEFAULT_SHORTCUT);
+  const [runAgainTrigger, setRunAgainTrigger] = useState(0);
   const [newsData, setNewsData] = useState<GeminiGenerateResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const [streamingText, setStreamingText] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  // Cache-related state variables
+  const [promptCache, setPromptCache] = useLocalStorage<CacheData[]>(NEWSDASH_CACHE_KEY, []);
   const [isCached, setIsCached] = useState<boolean>(false);
   const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
   const [cacheRefreshTrigger, setCacheRefreshTrigger] = useState(0);
   const [cloudSaveState, setCloudSaveState] = useState<CloudSaveState>('idle');
+  // Misc. state
   const [isDark, setIsDark] = useState(() => {
     // Check for saved theme or default to dark
     const saved = localStorage.getItem('theme');
     return saved ? saved === 'dark' : false;
   });
+
+  // Clear stale content as soon as a new request starts so the skeleton
+  // is never blocked by old streamingText / newsData values.
+  useEffect(() => {
+    if (loading) {
+      setStreamingText('');
+      setNewsData(null);
+    }
+  }, [loading]);
 
   useEffect(() => {
     // Apply theme to document
@@ -49,6 +65,11 @@ export default function App() {
     }
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, [isDark]);
+
+  const isExpired = (timestamp: number): boolean => {
+    const timeDifference = (Date.now() - timestamp);
+    return timeDifference > CACHE_EXPIRY_MS;
+  }
 
   // Handle shortcut selection from Sidebar or MobileShortcutTray
   const handleShortcutSelect = async (shortcut: Shortcut) => {
@@ -68,25 +89,51 @@ export default function App() {
     setSelected(selectedShortcut);
     
     // 1. Check localStorage first
-    const cached = await cacheManager.getCachedWithTimestamp(selectedShortcut.id);
+    const cached = promptCache.find((entry) => entry.id === selectedShortcut.id);
+
+    // If the cache object was found in localStorage, make sure it hasn't expired:
     if (cached) {
-      setNewsData(cached.data);
-      setIsCached(true);
-      setCacheTimestamp(cached.timestamp);
-      return;
+      console.log(`[handleShortcutSelect] Found a cached object in localStorage for ${selectedShortcut.id} `, cached);
+      const expired = isExpired(new Date(cached.updatedAt).getTime());
+
+      if (expired) {
+        console.log("[handleShortcutSelect] The cache has expired for: ", shortcut.id, ". Deleting...");
+        setPromptCache((prev) => prev.filter((entry) => entry.id !== cached.id));
+        setNewsData(null);
+        setIsCached(false);
+        setCacheTimestamp(null);
+        return;
+      } else {
+        console.log("[handleShortcutSelect] We found the cache object, updating the UI for: ", shortcut.id);
+        console.log("[handleShortcutSelect] Cache data & timestamp: ", cached.updatedAt, cached.data);
+        setNewsData(cached.data);
+        setStreamingText(cached.data.textWithCitations);
+        setIsCached(true);
+        setCacheTimestamp(cached.updatedAt);
+        return;
+      }
     }
 
-    // 2. localStorage miss — check Firestore
+    // 2. Check Firestore for the object 
+    // -- (Why? it's possible localStorage is empty but the object was cached within the past 7 days elsewhere, maybe on another device, etc.)
+    // -- (Note: this could lead to issues down the line so keep an eye on this as we evolve)
     try {
       const firestoreResult = await firestoreCache.read(selectedShortcut.id);
-      if (firestoreResult.status === 'fresh' || firestoreResult.status === 'stale') {
-        const data = firestoreResult.data as GeminiGenerateResponse;
+      if (firestoreResult.status === 'expired') {
+        console.log("[handleShortcutSelect] Fetched the cached object from the database, but it is expired. You should run it again for the latest news.");
+        return;
+      } else if (firestoreResult.status === 'fresh' || firestoreResult.status === 'stale') {
+        console.log("[handleShortcutSelect] Fetched the cached object from the database.");
+        const data = firestoreResult.data;
         const timestamp = new Date(firestoreResult.updatedAt).getTime();
+        // We found a fresh cache object in the database, it's just not in this user's localStorage.
         // Hydrate localStorage so next visit is instant
-        await cacheManager.setCached(selectedShortcut.id, data);
-        setNewsData(data);
+        setPromptCache([data, ...promptCache]);
+        // await cacheManager.setCached(selectedShortcut.id, data);
+        setNewsData(data.data as GeminiGenerateResponse);
+        setStreamingText(data.data.textWithCitations);
         setIsCached(true);
-        setCacheTimestamp(timestamp);
+        setCacheTimestamp(new Date(firestoreResult.updatedAt).getTime());
         setCloudSaveState('saved'); // already in Firestore
         return;
       }
@@ -95,12 +142,14 @@ export default function App() {
     }
 
     // 3. Both missed — clear previous data
+    console.log("[App] Either the cache missed or it has expired. Try a new search to get the latest news.");
     setNewsData(null);
     setIsCached(false);
     setCacheTimestamp(null);
   };
 
   const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean = false, timestamp?: number) => {
+    console.log("[App][handleResponse] Handling response...", data);
     setNewsData(data);
     setIsCached(fromCache);
     setCacheTimestamp(timestamp || null);
@@ -118,6 +167,7 @@ export default function App() {
   };
 
   const handleStreamChunk = (text: string, isComplete: boolean) => {
+    console.log("[App][handleStreamChunk] Handling stream chunk: ", text);
     setStreamingText(text);
     setIsStreaming(!isComplete);
     if (isComplete) {
@@ -127,17 +177,11 @@ export default function App() {
   };
 
   return (
-    <div 
-      className="flex flex-col min-h-screen font-grotesk"
-      style={{
-        backgroundColor: 'rgb(var(--bg-primary))',
-        color: 'rgb(var(--text-primary))'
-      }}
-    >
+    <div className="flex flex-col min-h-screen font-grotesk bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))]">
       <Header isDark={isDark} toggleTheme={() => setIsDark(!isDark)} />
       <MobileShortcutTray onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
       <main className="flex-1 flex min-h-0">
-        <Sidebar onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
+        <Sidebar promptCache={promptCache} onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
         <div className="flex-1 p-4 max-w-full md:max-w-240 mx-auto">
           <section className="mb-2">
             <p className="text-xs font-grotesk" style={{ color: 'rgb(var(--text-muted))' }}>
@@ -145,10 +189,14 @@ export default function App() {
             </p>
           </section>
           <ChatPanel 
-            ref={chatPanelRef}
             shortcut={selected}
+            promptCache={promptCache}
+            setPromptCache={setPromptCache}
             onResponse={handleResponse}
             onStreamChunk={handleStreamChunk}
+            forceRefreshTrigger={runAgainTrigger}
+            loading={loading}
+            setLoading={setLoading}
           />
           {selected && <NewsDashboard 
             title={selected.name} 
@@ -159,11 +207,9 @@ export default function App() {
             cacheTimestamp={cacheTimestamp}
             onSaveToCloud={handleSaveToCloud}
             cloudSaveState={cloudSaveState}
-            onRunAgain={() => {
-              if (chatPanelRef.current) {
-                chatPanelRef.current.runAgain();
-              }
-            }}
+            onRunAgain={() => setRunAgainTrigger(t => t + 1)}
+            loading={loading}
+            setLoading={setLoading}
           />}
           <Outlet />
         </div>

@@ -1,3 +1,4 @@
+import { CacheData } from 'src/types';
 import { generateWithGemini, isGeminiConfigured, GeminiGenerateResponse } from './geminiClient';
 
 export type GenerateRequest = {
@@ -55,10 +56,11 @@ export const apiClient = {
 // ─── Firestore cache (via Vercel serverless functions) ────────────────────────
 
 export type FirestoreReadResult =
-  | { status: 'fresh' | 'stale'; data: GeminiGenerateResponse; updatedAt: string; ageMs: number }
+  | { status: 'fresh' | 'stale'; data: CacheData; updatedAt: string; ageMs: number }
   | { status: 'miss' | 'expired' };
 
 export const firestoreCache = {
+  // Read from the cache via Firestore db
   async read(promptId: string): Promise<FirestoreReadResult> {
     const res = await fetch(`/api/cache-read?promptId=${encodeURIComponent(promptId)}`);
     if (!res.ok) {
@@ -68,6 +70,7 @@ export const firestoreCache = {
     return res.json() as Promise<FirestoreReadResult>;
   },
 
+  // Write to the Firestore db
   async save(promptId: string, data: GeminiGenerateResponse): Promise<boolean> {
     const res = await fetch('/api/cache-write', {
       method: 'POST',
