@@ -1,77 +1,40 @@
-import React from 'react';
-import ReactMarkdown from 'react-markdown';
-import type { Components } from 'react-markdown';
-import { GeminiGenerateResponse, GroundingChunk, CloudSaveState } from 'src/types';
+import React, { useEffect } from 'react';
+import ReactMarkdown, { type Components } from 'react-markdown';
+import { GeminiGenerateResponse, GroundingChunk, CloudSaveState, NewsItem, CacheData, Shortcut } from 'src/types';
+import { FRESH_TTL_MS, SEGMENT_COLORS } from '../constants';
+import { getCacheState } from '../lib/utils';
 
-const FRESH_TTL_MS = 24 * 60 * 60 * 1000;      // < 24 h  → return immediately
-
-export type NewsItem = {
-  source: string;
-  date: string;
-  updates: string[];
-  impact: string;
-  link: string;
-  action: string;
-};
-
-const dummyItems: NewsItem[] = [
-  {
-    source: 'OpenAI Research',
-    date: '2025-11-24',
-    updates: ['New alignment technique improves small model safety.'],
-    impact: 'Likely boosts reliability of edge deployments.',
-    link: 'https://example.com/openai-news',
-    action: 'Evaluate for roadmap integration.'
-  },
-  {
-    source: 'Google DeepMind',
-    date: '2025-11-23',
-    updates: ['Paper on long-context training efficiency released.'],
-    impact: 'Lower inference costs for long docs.',
-    link: 'https://example.com/deepmind-paper',
-    action: 'Prototype longer context summarization.'
-  },
-  {
-    source: 'Hugging Face',
-    date: '2025-11-22',
-    updates: ['New datasets for multi-modal QA announced.'],
-    impact: 'Faster experimentation for image+text tasks.',
-    link: 'https://example.com/hf-blog',
-    action: 'Create spike on multi-modal Q&A.'
-  }
-];
-
-const segmentColors: string[] = [
-  "oklch(72.3% 0.219 149.579)",
-  "oklch(65.07% 0.186 259.89)", // blue-500
-  "oklch(62.88% 0.203 29.23)", // red-500
-  "oklch(75.13% 0.181 56.36)", // orange-500
-  "oklch(94.13% 0.168 99.59)", // yellow-500
-]
 
 interface NewsDashboardProps { 
-  title?: string; 
-  data: GeminiGenerateResponse | null; 
-  streamingText?: string; 
-  isStreaming?: boolean; 
-  isCached?: boolean; 
-  cacheTimestamp?: number | null; 
-  onRunAgain?: () => void; 
-  onSaveToCloud?: () => void; 
-  cloudSaveState?: CloudSaveState;
+  data: GeminiGenerateResponse | null;
+  isStreaming: boolean; 
+  streamingText: string; 
+  onSaveToCloud: () => void; 
+  cloudSaveState: CloudSaveState;
   loading: boolean;
-  setLoading: (loading: boolean) => void;
-  isFetching?: boolean;
+  isFetching: boolean;
+  onRunAgain: () => void; 
+  currentCacheObj: CacheData | null;
+  currentCacheState: string;
 }
 
-export default function NewsDashboard({ title, data, streamingText, isStreaming, isCached, cacheTimestamp, onRunAgain, onSaveToCloud, cloudSaveState = 'idle', loading, setLoading, isFetching = false }: NewsDashboardProps) {
+export default function NewsDashboard({ data, isStreaming, streamingText, onSaveToCloud, cloudSaveState = 'idle', loading, isFetching, onRunAgain, currentCacheObj, currentCacheState }: NewsDashboardProps) {
+  // ––– STATE ––––––––––––
+  // Citation Popup State
   const dialogRef = React.useRef<HTMLDialogElement>(null);
   const [selectedSegment, setSelectedSegment] = React.useState<string | null>(null);
-  const [dialogPosition, setDialogPosition] = React.useState({ top: 0, left: 0 });
+  const [dialogPosition, setDialogPosition] = React.useState({ top: 0, left: 0 });      // TODO: don't think I need this saved in state
+  // Misc. State
   const [isSaveHovered, setIsSaveHovered] = React.useState<boolean>(false);
+  
 
+  // isFreshCache == true IF the timestamp from cache obj is from within the past 24hr
+  const isFreshCache = currentCacheState === 'fresh' || currentCacheState === 'stale';
+  const showActionBar = (currentCacheObj || (!!data && !isStreaming));
+
+  // ––– CITATION POPUP HANDLERS ––––––––––––
   // these are for handling the pop-up that appears in the citation segment view
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedSegment && dialogRef.current) {
       dialogRef.current.show();
     } else if (dialogRef.current) {
@@ -91,6 +54,8 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
     });
     setSelectedSegment(seg);
   };
+
+  // ––– NEWS DATA HANDLER ––––––––––––––––––––
 
   // memoized citation items
   const items: NewsItem[] = React.useMemo(() => {
@@ -125,6 +90,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
     });
   }, [data]);
 
+  // ––– MISC. HANDLER ––––––––––––––––––––
   // Custom ReactMarkdown components for better styling
   const markdownComponents: Components = {
     h1: ({ children }) => (
@@ -206,8 +172,6 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
     )
   };
 
-  const isFreshCache = !!cacheTimestamp && (Date.now() - cacheTimestamp < FRESH_TTL_MS); // cached within past 24h
-  const showActionBar = (isCached || (!!data && !isStreaming)) && (isCached || !!onSaveToCloud);
 
   return (
     <section className="mt-6">
@@ -222,7 +186,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
           }}
         >
           <span className="flex items-center gap-2">
-            {isCached ? (
+            {currentCacheObj ? (
               <>
                 <span 
                   className="w-1.5 h-1.5 rounded-full"
@@ -238,7 +202,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
                       transition: '0.33s ease'
                     }}
                   >
-                    {cacheTimestamp ? new Date(cacheTimestamp).toLocaleDateString() + ' at ' + new Date(cacheTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown date'}
+                    {currentCacheObj?.updatedAt ? new Date(currentCacheObj?.updatedAt).toLocaleDateString() + ' at ' + new Date(currentCacheObj?.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown date'}
                   </span>
                 </span>
               </>
@@ -247,7 +211,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
             )}
           </span>
           <div className="flex items-center gap-2">
-            {onSaveToCloud && cloudSaveState !== 'saved' && (
+            {cloudSaveState !== 'saved' && (
               <span 
                 onMouseEnter={() => setIsSaveHovered(true)}
                 onMouseLeave={() => setIsSaveHovered(false)}
@@ -267,15 +231,14 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
                 ✓ Saved to Cloud
               </span>
             )}
-            {onRunAgain && (
-              <button
-                onClick={onRunAgain}
-                className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary"
-                title="Run this prompt again to get fresh results"
-              >
-                Run Again
-              </button>
-            )}
+            <button
+              onClick={onRunAgain}
+              disabled={loading}
+              className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Run this prompt again to get fresh results"
+            >
+              Run Again
+            </button>
           </div>
         </div>
       )}
@@ -450,7 +413,7 @@ export default function NewsDashboard({ title, data, streamingText, isStreaming,
                           <div 
                             key={idx}
                             className="w-fit px-2 rounded text-[#141414] cursor-pointer hover:opacity-100 transition-opacity" 
-                            style={{ backgroundColor: segmentColors[idx] }}
+                            style={{ backgroundColor: SEGMENT_COLORS[idx] }}
                             onClick={(e) => handleSegmentClick(seg, e)}
                           >
                             {idx}

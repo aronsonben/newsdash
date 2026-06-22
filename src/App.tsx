@@ -7,44 +7,75 @@ import Sidebar from './components/Sidebar';
 import NewsDashboard from './components/NewsDashboard';
 import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
-import { GeminiGenerateResponse } from './lib/geminiClient';
+import { generateStreamWithGemini, isGeminiConfigured, GeminiGenerateResponse, GeminiStreamResponse } from './lib/geminiClient';
 import { firestoreCache } from './lib/apiClient';
-import { CacheData, Shortcut, CloudSaveState, FRESH_TTL_MS } from './types';
+import { CacheData, Shortcut, CloudSaveState } from './types';
+import { FRESH_TTL_MS, CACHE_EXPIRY_MS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
 import { useLocalStorage } from './services/useLocalStorage';
+import { Timestamp } from 'firebase/firestore';
+import { getCacheState } from './lib/utils';
 
-const NEWSDASH_CACHE_KEY = "newsdash_prompt_cache";
-const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-// This is the global climate news shortcut just copy-pasted. Should eventually do this more tactfully.
-const DEFAULT_SHORTCUT = {
-    "id": "global-climate-headlines-weekly",
-    "name": "Latest Climate Headlines Weekly",
-    "description": "Read the top stories from leading global and US climate, environment, and sustainability sources over the past week.",
-    "prompt": "Tell me about the latest major climate, environment, and sustainability news from around the world for the past 7 days.",
-    "icon": "/earth.png",
-    "instructions": "Search the web for the latest news published from the following sources: Grist, Canary Media, Inside Climate News, Guardian Climate, NYT Climate, Carbon Brief."
-}
 
 export default function App() {
-  const [selected, setSelected] = useState<Shortcut>(DEFAULT_SHORTCUT);
-  const [runAgainTrigger, setRunAgainTrigger] = useState(0);
-  const [newsData, setNewsData] = useState<GeminiGenerateResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [streamingText, setStreamingText] = useState<string>('');
-  const [isStreaming, setIsStreaming] = useState<boolean>(false);
-  // Cache-related state variables
-  const [promptCache, setPromptCache] = useLocalStorage<CacheData[]>(NEWSDASH_CACHE_KEY, []);
-  const [isCached, setIsCached] = useState<boolean>(false);
-  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
-  const [cacheRefreshTrigger, setCacheRefreshTrigger] = useState(0);
-  const [cloudSaveState, setCloudSaveState] = useState<CloudSaveState>('idle');
+  // ––– STATE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+  // Core Data
+  const [selectedShortcut, setSelectedShortcut] = useState<Shortcut>(DEFAULT_SHORTCUT);   // the selected shortcut object
+  const [newsData, setNewsData] = useState<GeminiGenerateResponse | null>(null);          // the gemini response data, if exists
+  const [streamingText, setStreamingText] = useState<string>('');                         // memory holder for text being streamed from Gemini response, cleared after finish
+  // App State
+  const [loading, setLoading] = useState<boolean>(false);                                 // True if waiting for Gemini response
+  const [error, setError] = useState<string | null>(null);                                // TODO: use this to elegantly display an error msg bar 
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);                         // indicates if app is currently streaming text from Gemini response
+  const [isFetching, setIsFetching] = useState<boolean>(false);                           // 'true' indicates the app is fetching data when user switches between shortcuts
+  const [cloudSaveState, setCloudSaveState] = useState<CloudSaveState>('idle');           // indicates the state of the 'save to cloud' functionality
+  // Cache 
+  const [promptCache, setPromptCache] = useLocalStorage<CacheData[]>(NEWSDASH_CACHE_KEY, []);   // localStorage Cache Object [{ shortcut1_obj }, { shortcut2_obj }, {...}]
+  const [cachedIds, setCachedIds] = useState<string[]>([]);                               // array of cachedIds from promptCache for easier parsing 
+  const [currentCacheObj, setCurrentCacheObj] = useState<CacheData | null>(null);         // if we find a cached obj in promptCache, set this as the obj of truth
+  const [currentCacheState, setCurrentCacheState] = useState<string>('none');
+  
+  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);              // TODO: OHH - I DONT NEED THIS, I SHOULD JUST USE promptCache FOR EACH OBJ. the time the current cache obj
+  // LLM State
+  const [geminiConfigured, setGeminiConfigured] = useState<boolean>(false);
+  
   // Misc. state
-  const [isDark, setIsDark] = useState(() => {
-    // Check for saved theme or default to dark
-    const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : false;
-  });
-  const [isFetching, setIsFetching] = useState<boolean>(false);
+  const [theme, setTheme] = useLocalStorage<string>('theme', 'dark');                     // css theme. defaults to dark.  
+
+  // ––– EFFECTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+  // Auto-load cached data for the default shortcut on first mount
+  useEffect(() => {
+    handleShortcutSelect(DEFAULT_SHORTCUT);
+
+    // TODO: put this in local state. safe to assume if configured once will be configured... also, i'm using my own API key so this check is kinda redundant.
+    let gemini = isGeminiConfigured();
+    setGeminiConfigured(gemini);
+  }, []);
+
+  // Apply theme to document
+  useEffect(() => {
+    const isDark = (theme === 'dark');
+    if (isDark) {
+      document.documentElement.setAttribute('data-theme', 'dark-earth');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    setTheme(isDark ? 'dark' : 'light');
+  }, [theme]);
+  
+  // Check cache status for all shortcuts
+  useEffect(() => {
+    setCachedIds(promptCache.map(entry => entry.id))
+
+    const inCache = promptCache.filter((pc) => (pc.id === selectedShortcut.id));
+    const inCacheObj = inCache.length > 0 ? inCache[0] : null
+    setCurrentCacheObj(inCacheObj);
+    const cacheState = getCacheState(inCache[0]);
+    setCurrentCacheState(cacheState);
+    console.log("[App] Setting cacheObj status: ", inCacheObj?.id, " -- ", cacheState);
+  }, [promptCache]);
+
 
   // Clear stale content as soon as a new request starts so the skeleton
   // is never blocked by old streamingText / newsData values.
@@ -55,29 +86,19 @@ export default function App() {
     }
   }, [loading]);
 
-  // Auto-load cached data for the default shortcut on first mount
-  useEffect(() => {
-    handleShortcutSelect(DEFAULT_SHORTCUT);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    // Apply theme to document
-    if (isDark) {
-      document.documentElement.setAttribute('data-theme', 'dark-earth');
-      // document.documentElement.setAttribute('data-theme', 'dark');     // old, simple dark theme
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-    }
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
+  // ––– HANDLER & AUX FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   const isExpired = (timestamp: number): boolean => {
     const timeDifference = (Date.now() - timestamp);
     return timeDifference > CACHE_EXPIRY_MS;
   }
 
-  // Handle shortcut selection from Sidebar or MobileShortcutTray
+  /**
+   * Handles the selection of a shortcut from the sidebar by trying 
+   * to load any stored response data for the given shortcut
+   * @param shortcut - the selected shortcut
+   * @returns 
+   */
   const handleShortcutSelect = async (shortcut: Shortcut) => {
     const selectedShortcut = {
       id: shortcut.id,
@@ -91,8 +112,12 @@ export default function App() {
     // Reset cloud save state when switching shortcuts
     setCloudSaveState('idle');
 
-    // Update selected shortcut immediately (for ChatPanel)
-    setSelected(selectedShortcut);
+    // Update selectedShortcut shortcut immediately (for ChatPanel)
+    setSelectedShortcut(selectedShortcut);
+
+    // Remove the cache references
+    setCurrentCacheObj(null);
+    setCurrentCacheState('none');
 
     // Clear the NewsDashboard immediately
     setNewsData(null);
@@ -100,28 +125,33 @@ export default function App() {
     setIsFetching(true);
     
     // 1. Check localStorage first
-    const cached = promptCache.find((entry) => entry.id === selectedShortcut.id);
+    const cachedObj = promptCache.find((entry) => entry.id === selectedShortcut.id);
 
     // If the cache object was found in localStorage, make sure it hasn't expired:
-    if (cached) {
-      // console.log(`[handleShortcutSelect] Found a cached object in localStorage for ${selectedShortcut.id} `, cached);
-      const expired = isExpired(new Date(cached.updatedAt).getTime());
+    if (cachedObj) {
+      console.log(`[handleShortcutSelect] Found a cached object in localStorage for ${selectedShortcut.id} `, cachedObj);
 
-      if (expired) {
-        // console.log("[handleShortcutSelect] The cache has expired for: ", shortcut.id, ". Deleting...");
-        setPromptCache((prev) => prev.filter((entry) => entry.id !== cached.id));
+      // const cacheObjExpired = isExpired(new Date(cachedObj.updatedAt).getTime());
+      const cacheObjState = getCacheState(cachedObj);
+
+      // The cache object found in localStorage is expired...
+      // TODO: tell the user they should run it again
+      if (cacheObjState === 'expired') {
+        console.log("[handleShortcutSelect] The cache has expired for: ", shortcut.id, ". Deleting from localStorage. You should run it again.");
+
+        // Remove the existing cachedObj from the localStorage-based `promptCache`
+        setPromptCache((prev) => prev.filter((entry) => entry.id !== cachedObj.id));
+        // TODO: DO I NEED TO?? Clear the data for all the other state
         setNewsData(null);
-        setIsCached(false);
-        setCacheTimestamp(null);
         setIsFetching(false);
         return;
       } else {
-        // console.log("[handleShortcutSelect] We found the cache object, updating the UI for: ", shortcut.id);
-        // console.log("[handleShortcutSelect] Cache data & timestamp: ", cached.updatedAt, cached.data);
-        setNewsData(cached.data);
-        setStreamingText(cached.data.textWithCitations);
-        setIsCached(true);
-        setCacheTimestamp(cached.updatedAt);
+        console.log("[handleShortcutSelect] We found the cache object, updating the UI for: ", shortcut.id);
+        setNewsData(cachedObj.data);
+        // setStreamingText(cachedObj.data.textWithCitations);
+        setCurrentCacheObj(cachedObj);
+        setCurrentCacheState(cacheObjState);
+        // setCacheTimestamp(cachedObj.updatedAt);  // set timestamp to the date the response data in promptCache was cached at
         setIsFetching(false);
         return;
       }
@@ -143,8 +173,6 @@ export default function App() {
         setPromptCache([data, ...promptCache]);
         setNewsData(data.data as GeminiGenerateResponse);
         setStreamingText(data.data.textWithCitations);
-        setIsCached(true);
-        setCacheTimestamp(new Date(firestoreResult.updatedAt).getTime());
         setCloudSaveState('saved'); // already in Firestore
         setIsFetching(false);
         return;
@@ -156,28 +184,40 @@ export default function App() {
     // 3. Both missed — clear previous data
     console.log("[App] Either the cache missed or it has expired. Try a new search to get the latest news.");
     setNewsData(null);
-    setIsCached(false);
-    setCacheTimestamp(null);
+    // setIsCached(false);
+    // setCacheTimestamp(null);   // set timestamp to null since we found no cache obj
     setIsFetching(false);
   };
 
-  const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean = false, timestamp?: number) => {
-    setNewsData(data);
-    setIsCached(fromCache);
-    setCacheTimestamp(timestamp || null);
-    // New response — allow saving to cloud
-    setCloudSaveState('idle');
-    // Trigger cache indicator refresh in Sidebar
-    setCacheRefreshTrigger(prev => prev + 1);
-  };
-
   const handleSaveToCloud = async () => {
-    if (!newsData || !selected) return;
+    if (!newsData || !selectedShortcut) return;
     setCloudSaveState('saving');
-    const success = await firestoreCache.save(selected.id, newsData);
+    const success = await firestoreCache.save(selectedShortcut.id, newsData);
     setCloudSaveState(success ? 'saved' : 'error');
   };
 
+  /**
+   * When the Gemini response is fully streamed & parsed, this function sets app state
+   * for several key data points. 
+   * @param data - the full Gemini response data obj
+   * @param fromCache - indicates whether the `data` obj came from the localStorage-based cache (`true`) or the database (`false`)
+   * @param timestamp 
+   */
+  const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean, timestamp?: number) => {
+    setNewsData(data);
+
+    // TODO: what are these doing
+    // setCacheTimestamp(timestamp || null);
+    // New response — allow saving to cloud
+    setCloudSaveState('idle');
+  };
+
+  /**
+   * Each time a streaming chunk from Gemini is parsed, this function is called
+   * to set app state pertaining to Gemini response streaming.
+   * @param text - the current chunk of streaming text
+   * @param isComplete - whether or not streaming is finished
+   */
   const handleStreamChunk = (text: string, isComplete: boolean) => {
     setStreamingText(text);
     setIsStreaming(!isComplete);
@@ -187,12 +227,106 @@ export default function App() {
     }
   };
 
+  // ––– CORE FEATURE FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+  /** Core feature function to send a request to the Gemini API, assuming all criteria are met */
+  async function onSend(forceRefresh = false) {
+    // if (!canSend) return;
+
+    // Gather Prompt Info
+    const promptId = selectedShortcut.id;         // no 'custom-prompt' option yet
+    const promptText = selectedShortcut.prompt;   // just use prompt from selectedShortcut
+    // const promptText = input.trim();           // no custom prompts, no need to handle user input (TO DELETE)
+    
+    // Set App State
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // DEPRECATED: Moved this to onMount logic & updated ChatPanel: user can't even hit send btn if Gemini not configured
+      /* if (!geminiConfigured) {
+        const errorText = `Gemini not configured. Please set a Gemini API key`;
+        handleStreamChunk(errorText, true);
+        return;
+      } */
+
+      // TODO: I don't know what this is doing... 
+      // Check cache first (unless forcing refresh)
+      if (!forceRefresh) {
+        console.log("onsend - !forceRefresh")
+        const cached = promptCache.find((entry) => entry.id === promptId);
+        if (cached) {
+          // Use cached response
+          handleStreamChunk(cached.data.textWithCitations, true);
+          handleResponse(cached.data, true, cached.updatedAt); // true indicates from cache
+          return;
+        }
+      }
+      
+      // We do not have a cached response here, so making fresh call to LLM
+      const streamResponse: GeminiStreamResponse = await generateStreamWithGemini({
+        prompt: promptText,
+        instructions: selectedShortcut.instructions,
+        temperature: 1.0,
+        modelName: 'gemini-2.5-flash'
+      });
+      
+      let accumulatedText = '';
+      
+      // Process the stream chunks from the LLM response
+      for await (const chunk of streamResponse.stream) {
+        if (!chunk.isComplete && chunk.text) {
+          accumulatedText += chunk.text;
+          handleStreamChunk(accumulatedText, false);
+        }
+      }
+      
+      // Get the full response with citations when streaming completes
+      const fullResponse = await streamResponse.getFullResponse();
+
+      // TODO: investigate whether this can be made more efficient
+      // Update the prompt cache by either updating the existing one or adding a new one
+      setPromptCache((prev) => {
+        const now = Timestamp.now().toMillis();
+        const existing = prev.find((entry) => entry.id === promptId);
+
+        if (existing) {
+          const updated = { ...existing, data: fullResponse, updatedAt: now };
+          return [updated, ...prev.filter((entry) => entry.id !== promptId)];
+        }
+
+        const newPromptCache: CacheData = {
+          id: promptId,
+          data: fullResponse,
+          updatedAt: now,
+        };
+        return [newPromptCache, ...prev];
+      });
+      
+      // Send final response to NewsDashboard
+      handleStreamChunk(fullResponse.textWithCitations, true);
+      handleResponse(fullResponse, false); // false indicates fresh from API
+    } catch (e: any) {
+      setError(e?.message ?? 'Request failed');
+      handleStreamChunk('Error generating response', true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  // ––– RETURN JSX –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
   return (
     <div className="flex flex-col min-h-screen font-grotesk bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))]">
-      <Header isDark={isDark} toggleTheme={() => setIsDark(!isDark)} />
-      <MobileShortcutTray onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
+      <Header isDark={(theme === 'dark')} toggleTheme={() => setTheme((theme === 'dark') ? 'light' : 'dark')} />
+      <MobileShortcutTray onSelect={handleShortcutSelect} selectedId={selectedShortcut?.id} />
       <main className="flex-1 flex min-h-0">
-        <Sidebar promptCache={promptCache} onSelect={handleShortcutSelect} refreshCache={cacheRefreshTrigger} selectedId={selected?.id} />
+        <Sidebar 
+          selectedId={selectedShortcut.id} 
+          cachedIds={cachedIds}
+          onSelect={handleShortcutSelect} 
+        />
         <div className="flex-1 p-4 max-w-full md:max-w-240 mx-auto">
           <section className="mb-2">
             <p className="text-xs font-grotesk" style={{ color: 'rgb(var(--text-muted))' }}>
@@ -200,29 +334,23 @@ export default function App() {
             </p>
           </section>
           <ChatPanel 
-            shortcut={selected}
-            promptCache={promptCache}
-            setPromptCache={setPromptCache}
-            onResponse={handleResponse}
-            onStreamChunk={handleStreamChunk}
-            forceRefreshTrigger={runAgainTrigger}
+            shortcut={selectedShortcut}
+            onSend={onSend}
             loading={loading}
-            setLoading={setLoading}
+            geminiConfigured={geminiConfigured}
           />
-          {selected && <NewsDashboard 
-            title={selected.name} 
+          <NewsDashboard 
             data={newsData} 
-            streamingText={streamingText} 
             isStreaming={isStreaming} 
-            isCached={isCached} 
-            cacheTimestamp={cacheTimestamp}
+            streamingText={streamingText} 
             onSaveToCloud={handleSaveToCloud}
             cloudSaveState={cloudSaveState}
-            onRunAgain={() => setRunAgainTrigger(t => t + 1)}
+            onRunAgain={onSend}
             loading={loading}
-            setLoading={setLoading}
             isFetching={isFetching}
-          />}
+            currentCacheObj={currentCacheObj}
+            currentCacheState={currentCacheState}
+          />
           <Outlet />
         </div>
       </main>

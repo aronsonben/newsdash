@@ -29,15 +29,6 @@ const app = initializeApp(firebaseConfig);
 //   return admin.firestore();
 // }
 
-// Get a list of cities from your database
-async function getCacheReads(db: Firestore) {
-  const cacheCollection = collection(db, 'prompt_cache');
-  const cacheSnapshot = await getDocs(cacheCollection);
-  const cacheList = cacheSnapshot.docs.map(cac => cac.data());
-  console.log(cacheList);
-  return cacheList;
-}
-
 function getDb(): Firestore {
   const db = getFirestore(app);
   return db;

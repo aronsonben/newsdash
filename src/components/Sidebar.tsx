@@ -2,36 +2,22 @@ import { useEffect, useState } from 'react';
 import { CacheData, Shortcut } from 'src/types';
 import shortcuts from '../../shortcuts.json';
 
-export function Sidebar({ promptCache, onSelect, refreshCache, selectedId }: { promptCache: CacheData[]; onSelect: (s: Shortcut) => void; refreshCache?: number; selectedId?: string }) {
-  const shortcutItems = (shortcuts as Shortcut[]).filter((s) => !!s?.name && !!s?.prompt);
-  const [cachedIds, setCachedIds] = useState<Set<string>>(new Set());
+const BASE_SHORTCUTS: Shortcut[] = shortcuts;
 
-  // Check cache status for all shortcuts
-  useEffect(() => {
-    // Go through all the shortcuts quickly and check if they've been cached
-    const checkCacheStatus = async () => {
-      const cached = new Set<string>();
-      for (const item of shortcutItems) {
-        if (item.id) {
-          const cachedData = promptCache.find((entry) => entry.id === item.id);
-          if (cachedData) {
-            cached.add(item.id);
-          }
-        }
-      }
-      
-      setCachedIds(cached);
-    }
+interface SidebarProps { 
+  selectedId: string;
+  cachedIds: string[];
+  onSelect: (s: Shortcut) => void; 
+}
 
-    checkCacheStatus();
-  }, [promptCache]);
+export function Sidebar({ selectedId, cachedIds, onSelect  }: SidebarProps) {
 
 
   return (
     <aside className="hidden md:flex flex-col gap-3 border-r theme-border theme-sidebar-bg px-4 py-5 shrink-0 w-20 lg:w-72">
       <div className="hidden lg:block font-semibold mb-1 theme-text-primary font-grotesk text-lg">Shortcuts</div>
       <div className="grid gap-2">
-        {shortcutItems.map((item) => {
+        {BASE_SHORTCUTS.map((item) => {
           const iconSrc = item.icon ? (item.icon.startsWith('/') ? item.icon : `/${item.icon}`) : undefined;
           const initials = item.name
             .split(' ')
@@ -40,7 +26,8 @@ export function Sidebar({ promptCache, onSelect, refreshCache, selectedId }: { p
             .slice(0, 2)
             .toUpperCase();
 
-          const isCached = item.id && cachedIds.has(item.id);
+          // const isCached = item.id && cachedIds.has(item.id);
+          const isCached = item.id && (cachedIds.indexOf(item.id) > 0);
           const isSelected = item.id === selectedId;
 
           return (
@@ -81,8 +68,9 @@ export function Sidebar({ promptCache, onSelect, refreshCache, selectedId }: { p
               <span className="hidden lg:block font-medium font-grotesk group-hover:theme-sidebar-accent transition-colors">
                 {item.name}
               </span>
-              {isCached && (
+              {cachedIds.indexOf(item.id) >= 0 && (
                 <span 
+                  id="cached-indicator"
                   className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-[rgb(var(--dashboard-accent))]" 
                   title="Cached data available"
                 />

@@ -97,6 +97,15 @@ export interface CacheData {
 
 export type CloudSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
+export type NewsItem = {
+  source: string;
+  date: string;
+  updates: string[];
+  impact: string;
+  link: string;
+  action: string;
+};
+
 export interface Shortcut {
   id: string;
   name: string; 
@@ -105,8 +114,4 @@ export interface Shortcut {
   icon: string;
   instructions: string;
 }
-
-
-// ––– Constants (ik, ik, should be elsewhere) ––––––––––––––––––––––––––––––
-export const FRESH_TTL_MS = 24 * 60 * 60 * 1000;      // < 24 h  → return immediately
 
