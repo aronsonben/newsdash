@@ -72,6 +72,7 @@ export type GeminiGenerateResponse = {
   groundingSupports?: GroundingSupport[];
   searchEntryPoint?: string;
   raw?: any;
+  error?: any;
 };
 
 

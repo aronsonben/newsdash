@@ -1,7 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { hasReachedDailyLimit, incrementUsage, isDevelopment } from './usageTracker';
 import { GeminiGenerateRequest, GroundingChunk, GroundingSupport, GroundingMetadata, GeminiCandidate, GeminiApiResponse, GeminiGenerateResponse, GeminiStreamChunk, GeminiStreamResponse } from "src/types";
-import { isGeminiConfigured } from "./utils";
 
 let apiKey: string | undefined;
 
@@ -59,13 +58,13 @@ function addCitations(text: string, groundingMetadata?: GroundingMetadata): stri
 }
 
 export async function generateWithGemini(req: GeminiGenerateRequest): Promise<GeminiGenerateResponse> {
-  if (!isGeminiConfigured()) {
-    return {
-      text: `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`,
-      textWithCitations: `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`,
-      searchQueries: []
-    };
-  }
+  // if (!isGeminiConfigured()) {
+  //   return {
+  //     text: `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`,
+  //     textWithCitations: `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`,
+  //     searchQueries: []
+  //   };
+  // }
 
   // Check daily usage limit (only in production)
   if (hasReachedDailyLimit()) {
@@ -150,7 +149,8 @@ export async function generateWithGemini(req: GeminiGenerateRequest): Promise<Ge
 
 export async function generateStreamWithGemini(req: GeminiGenerateRequest): Promise<GeminiStreamResponse> {
   // First check that Gemini is configured in the backend. If not, return an error.
-  if (!isGeminiConfigured()) {
+  // TODO: (6/22) Removing this check while I figure out this geminiConfig check
+  /* if (!isGeminiConfigured()) {
     const errorText = `Gemini not configured. Please set VITE_GEMINI_API_KEY environment variable.`;
     const errorResponse: GeminiGenerateResponse = {
       text: errorText,
@@ -165,7 +165,7 @@ export async function generateStreamWithGemini(req: GeminiGenerateRequest): Prom
       getFullResponse: async () => errorResponse
     };
   }
-
+ */
   // Check daily usage limit (only in production). TODO: limit requests further
   if (hasReachedDailyLimit()) {
     const errorText = `Daily API limit reached. You can make 20 requests per day. Please try again tomorrow.`;

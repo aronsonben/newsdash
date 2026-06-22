@@ -1,6 +1,5 @@
 import { CacheData, GeminiStreamResponse, GeminiGenerateResponse } from 'src/types';
 import { generateStreamWithGemini } from './geminiClient';
-import { isGeminiConfigured } from './utils';
 
 export type GenerateRequest = {
   prompt: string;
@@ -22,14 +21,6 @@ export const apiClient = {
   async generate(req: GenerateRequest): Promise<GeminiStreamResponse> {
     // ── Local dev: call Gemini directly (VITE_GEMINI_API_KEY stays on your machine) ──
     if (import.meta.env.DEV) {
-      if (!isGeminiConfigured()) {
-        const errorText = `Gemini not configured. Please set VITE_GEMINI_API_KEY in .env.local for local development.`;
-        const errorResponse: GeminiGenerateResponse = { text: errorText, textWithCitations: errorText, searchQueries: [] };
-        return {
-          stream: (async function* () { yield { text: errorText, isComplete: true }; })(),
-          getFullResponse: async () => errorResponse,
-        };
-      }
       console.log('[dev] Calling Gemini directly with prompt:', req.prompt);
       return generateStreamWithGemini({
         prompt: req.prompt,
@@ -50,10 +41,35 @@ export const apiClient = {
     });
 
     if (!res.ok) {
-      const errorText = `API error ${res.status}: ${await res.text()}`;
-      const errorResponse: GeminiGenerateResponse = { text: errorText, textWithCitations: errorText, searchQueries: [] };
+      const errorBody = await res.text();
+      let errorText: string;
+      let errorType: 'config' | 'quota' | 'network' | 'unknown' = 'unknown';
+
+      // Parse error to determine type
+      if (res.status === 500 && errorBody.includes('not configured')) {
+        errorType = 'config';
+        errorText = `⚠️ Whoops! API configuration error. I'll be fixing this soon, or contact me above.`;
+      } else if (res.status === 429 || errorBody.includes('quota')) {
+        errorType = 'quota';
+        errorText = `⚠️ Whoops! API quota exceeded. Please try again later.`;
+      } else if (res.status >= 500) {
+        errorType = 'network';
+        errorText = `⚠️ Whoops! Service temporarily unavailable. Please try again.`;
+      } else {
+        errorText = `API error ${res.status}: ${errorBody}`;
+      }
+
+      const errorResponse: GeminiGenerateResponse = { 
+        text: errorText, 
+        textWithCitations: errorText, 
+        searchQueries: [],
+        error: { type: errorType, status: res.status, message: errorBody }
+      };
+      
       return {
-        stream: (async function* () { yield { text: errorText, isComplete: true }; })(),
+        stream: (async function* () { 
+          yield { text: errorText, isComplete: true, error: errorType }; 
+        })(),
         getFullResponse: async () => errorResponse,
       };
     }

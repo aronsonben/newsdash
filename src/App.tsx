@@ -13,7 +13,7 @@ import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStre
 import { FRESH_TTL_MS, CACHE_EXPIRY_MS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
 import { useLocalStorage } from './services/useLocalStorage';
 import { Timestamp } from 'firebase/firestore';
-import { getCacheState, isGeminiConfigured } from './lib/utils';
+import { getCacheState } from './lib/utils';
 
 
 
@@ -49,9 +49,9 @@ export default function App() {
     handleShortcutSelect(DEFAULT_SHORTCUT);
 
     // TODO: put this in local state. safe to assume if configured once will be configured... also, i'm using my own API key so this check is kinda redundant.
-    let gemini = isGeminiConfigured();
-    console.log("[App] Gemini configured: ", gemini);
-    setGeminiConfigured(gemini);
+    // let gemini = isGeminiConfigured();
+    // console.log("[App] Gemini configured: ", gemini);
+    // setGeminiConfigured(gemini);
   }, []);
 
   // Apply theme to document
@@ -244,12 +244,7 @@ export default function App() {
     setError(null);
     
     try {
-      // DEPRECATED: Moved this to onMount logic & updated ChatPanel: user can't even hit send btn if Gemini not configured
-      /* if (!geminiConfigured) {
-        const errorText = `Gemini not configured. Please set a Gemini API key`;
-        handleStreamChunk(errorText, true);
-        return;
-      } */
+
 
       // TODO: I don't know what this is doing... 
       // Check cache first (unless forcing refresh)
