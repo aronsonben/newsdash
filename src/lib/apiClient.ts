@@ -3,7 +3,8 @@ import { generateStreamWithGemini } from './geminiClient';
 
 export type GenerateRequest = {
   prompt: string;
-  model?: string; // e.g. 'openai/gpt-4o' or any supported model alias
+  modelName?: string; 
+  instructions?: string;
   temperature?: number;
   messages?: { role: 'system' | 'user' | 'assistant'; content: string }[]; // optional full history
   stream?: boolean; // future expansion
@@ -25,7 +26,7 @@ export const apiClient = {
       return generateStreamWithGemini({
         prompt: req.prompt,
         temperature: req.temperature ?? 0.7,
-        modelName: req.model ?? 'gemini-2.5-flash',
+        modelName: req.modelName ?? 'gemini-2.5-flash',
       });
     }
 
@@ -35,7 +36,7 @@ export const apiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt: req.prompt,
-        model: req.model ?? 'gemini-2.5-flash',
+        model: req.modelName ?? 'gemini-2.5-flash',
         temperature: req.temperature ?? 0.7,
       }),
     });

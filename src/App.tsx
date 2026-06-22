@@ -8,7 +8,7 @@ import NewsDashboard from './components/NewsDashboard';
 import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
 import { generateStreamWithGemini} from './lib/geminiClient';
-import { firestoreCache } from './lib/apiClient';
+import { apiClient, firestoreCache } from './lib/apiClient';
 import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse } from './types';
 import { FRESH_TTL_MS, CACHE_EXPIRY_MS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
 import { useLocalStorage } from './services/useLocalStorage';
@@ -242,9 +242,9 @@ export default function App() {
     // Set App State
     setLoading(true);
     setError(null);
+
     
     try {
-
 
       // TODO: I don't know what this is doing... 
       // Check cache first (unless forcing refresh)
@@ -258,14 +258,35 @@ export default function App() {
           return;
         }
       }
+
+
+      // TESTING, DELTE LATER
+      // if (!import.meta.env.DEV) {
+      //   apiClient.generate({
+      //     prompt: promptText,
+      //     instructions: selectedShortcut.instructions,
+      //     temperature: 1.0,
+      //     modelName: 'gemini-2.5-flash'
+      //   });
+      // }
+
       
       // We do not have a cached response here, so making fresh call to LLM
-      const streamResponse: GeminiStreamResponse = await generateStreamWithGemini({
+      // const streamResponse: GeminiStreamResponse = await generateStreamWithGemini({
+      //   prompt: promptText,
+      //   instructions: selectedShortcut.instructions,
+      //   temperature: 1.0,
+      //   modelName: 'gemini-2.5-flash'
+      // });
+
+      const streamResponse: GeminiStreamResponse = await apiClient.generate({
         prompt: promptText,
         instructions: selectedShortcut.instructions,
         temperature: 1.0,
         modelName: 'gemini-2.5-flash'
       });
+
+      
       
       let accumulatedText = '';
       
