@@ -30,7 +30,6 @@ export function isGeminiConfigured() {
   if (!import.meta.env.DEV) {
     console.log("[utils] Using process", );
     apiKey = process.env.GEMINI_API_KEY;
-    console.log("[utils] apiKey: ", apiKey);
   } else {
     console.log("[utils] using vite", import.meta.env);
     apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ?? (import.meta.env as any).GEMINI_API_KEY;

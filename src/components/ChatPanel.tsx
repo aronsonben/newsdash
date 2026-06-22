@@ -77,7 +77,7 @@ function ChatPanel({ shortcut, onSend, loading, geminiConfigured }: ChatPanelPro
           </button>
           <button
             onClick={() => onSend(true)}
-            disabled={!geminiConfigured || !canSend}
+            disabled={!canSend}
             className="px-6 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap min-h-10 focus:outline-none focus:ring-2 shadow-sm hover:shadow-md"
             style={{
               backgroundColor: canSend ? 'rgb(var(--button-primary))' : 'rgb(var(--button-primary-disabled))',

@@ -6,10 +6,10 @@ import { isGeminiConfigured } from "./utils";
 let apiKey: string | undefined;
 
 if (!import.meta.env.DEV) {
-  console.log("[geminiClient] Using process", );
+  // console.log("[geminiClient] Using process", );
   apiKey = process.env.GEMINI_API_KEY;
 } else {
-  console.log("[geminiClient] using vite", import.meta.env);
+  // console.log("[geminiClient] using vite", import.meta.env);
   apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ?? (import.meta.env as any).GEMINI_API_KEY;
 }
 
