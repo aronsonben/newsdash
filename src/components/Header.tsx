@@ -113,10 +113,10 @@ export default function Header({ isDark, toggleTheme, apiStatus }: HeaderProps) 
         >
           {isDark ? '☀️' : '🌙'}
         </button>
-        <div className="flex flex-col items-center px-3 py-1 bg-[rgb(var(--button-primary))]/20 rounded-xl">
+        {/* <div className="flex flex-col items-center px-3 py-1 bg-[rgb(var(--button-primary))]/20 rounded-xl">
           <p className="text-xs" style={{ color: 'rgb(var(--text-muted))' }}>API: </p>
           <p className="text-xs" style={{ color: 'rgb(var(--text-muted))' }}>{apiStatus ? '✅': '❌'}</p>
-        </div>
+        </div> */}
         <span style={{ color: 'rgb(var(--text-muted))' }}>·</span>
         <button
           onClick={() => setShowAbout(true)}

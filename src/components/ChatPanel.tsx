@@ -18,7 +18,8 @@ function ChatPanel({ shortcut, onSend, loading, geminiConfigured }: ChatPanelPro
 
   // TODO: see if this can be made more efficient
   // update the 'canSend' based on: 1) input isn't empty, 2) not in loading state, 3) geminiConfigured
-  const canSend = useMemo(() => input.trim().length > 0 && !loading && geminiConfigured, [input, loading, geminiConfigured]);
+  // const canSend = useMemo(() => input.trim().length > 0 && !loading && geminiConfigured, [input, loading, geminiConfigured]);
+  const canSend = true; // TODO: HARDCODING JUNE 22 FOR TESTING
 
   // ––– EFFECTS ––––––––––––
   useEffect(() => {

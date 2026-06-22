@@ -51,7 +51,6 @@ export default function App() {
     // TODO: put this in local state. safe to assume if configured once will be configured... also, i'm using my own API key so this check is kinda redundant.
     let gemini = isGeminiConfigured();
     console.log("[App] Gemini configured: ", gemini);
-    console.log("[App] api key? ", import.meta.env);
     setGeminiConfigured(gemini);
   }, []);
 
