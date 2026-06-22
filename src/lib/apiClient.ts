@@ -1,5 +1,6 @@
 import { CacheData, GeminiStreamResponse, GeminiGenerateResponse } from 'src/types';
-import { generateStreamWithGemini, isGeminiConfigured} from './geminiClient';
+import { generateStreamWithGemini } from './geminiClient';
+import { isGeminiConfigured } from './utils';
 
 export type GenerateRequest = {
   prompt: string;

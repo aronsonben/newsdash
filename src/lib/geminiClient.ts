@@ -1,18 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { hasReachedDailyLimit, incrementUsage, isDevelopment } from './usageTracker';
 import { GeminiGenerateRequest, GroundingChunk, GroundingSupport, GroundingMetadata, GeminiCandidate, GeminiApiResponse, GeminiGenerateResponse, GeminiStreamChunk, GeminiStreamResponse } from "src/types";
+import { isGeminiConfigured } from "./utils";
 
-// Environment variables for Gemini API
 let apiKey: string | undefined;
 
 if (!import.meta.env.DEV) {
+  console.log("[geminiClient] Using process", );
   apiKey = process.env.GEMINI_API_KEY;
 } else {
+  console.log("[geminiClient] using vite", import.meta.env);
   apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ?? (import.meta.env as any).GEMINI_API_KEY;
-}
-
-export function isGeminiConfigured() {
-  return Boolean(apiKey);
 }
 
 function addCitations(text: string, groundingMetadata?: GroundingMetadata): string {

@@ -4,6 +4,7 @@ import newsdashgreen from '../assets/newsdash_green.png';
 interface HeaderProps {
   isDark: boolean;
   toggleTheme: () => void;
+  apiStatus: boolean;
 }
 
 function AboutModal({ onClose }: { onClose: () => void }) {
@@ -62,7 +63,7 @@ function AboutModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function Header({ isDark, toggleTheme }: HeaderProps) {
+export default function Header({ isDark, toggleTheme, apiStatus }: HeaderProps) {
   const [showAbout, setShowAbout] = useState(false);
   return (
     <>
@@ -112,6 +113,10 @@ export default function Header({ isDark, toggleTheme }: HeaderProps) {
         >
           {isDark ? '☀️' : '🌙'}
         </button>
+        <div className="flex flex-col items-center px-3 py-1 bg-[rgb(var(--button-primary))]/20 rounded-xl">
+          <p className="text-xs" style={{ color: 'rgb(var(--text-muted))' }}>API: </p>
+          <p className="text-xs" style={{ color: 'rgb(var(--text-muted))' }}>{apiStatus ? '✅': '❌'}</p>
+        </div>
         <span style={{ color: 'rgb(var(--text-muted))' }}>·</span>
         <button
           onClick={() => setShowAbout(true)}

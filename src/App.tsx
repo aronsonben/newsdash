@@ -7,13 +7,13 @@ import Sidebar from './components/Sidebar';
 import NewsDashboard from './components/NewsDashboard';
 import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
-import { generateStreamWithGemini, isGeminiConfigured} from './lib/geminiClient';
+import { generateStreamWithGemini} from './lib/geminiClient';
 import { firestoreCache } from './lib/apiClient';
 import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse } from './types';
 import { FRESH_TTL_MS, CACHE_EXPIRY_MS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
 import { useLocalStorage } from './services/useLocalStorage';
 import { Timestamp } from 'firebase/firestore';
-import { getCacheState } from './lib/utils';
+import { getCacheState, isGeminiConfigured } from './lib/utils';
 
 
 
@@ -51,6 +51,7 @@ export default function App() {
     // TODO: put this in local state. safe to assume if configured once will be configured... also, i'm using my own API key so this check is kinda redundant.
     let gemini = isGeminiConfigured();
     console.log("[App] Gemini configured: ", gemini);
+    console.log("[App] api key? ", import.meta.env);
     setGeminiConfigured(gemini);
   }, []);
 
@@ -320,7 +321,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-screen font-grotesk bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))]">
-      <Header isDark={(theme === 'dark')} toggleTheme={() => setTheme((theme === 'dark') ? 'light' : 'dark')} />
+      <Header isDark={(theme === 'dark')} toggleTheme={() => setTheme((theme === 'dark') ? 'light' : 'dark')} apiStatus={geminiConfigured} />
       <MobileShortcutTray onSelect={handleShortcutSelect} selectedId={selectedShortcut?.id} />
       <main className="flex-1 flex min-h-0">
         <Sidebar 
