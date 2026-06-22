@@ -1,4 +1,4 @@
-import { GeminiGenerateResponse } from './geminiClient';
+import { GeminiGenerateResponse } from "src/types";
 
 interface CachedResponse {
   data: GeminiGenerateResponse;
