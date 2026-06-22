@@ -1,84 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
 import { hasReachedDailyLimit, incrementUsage, isDevelopment } from './usageTracker';
+import { GeminiGenerateRequest, GroundingChunk, GroundingSupport, GroundingMetadata, GeminiCandidate, GeminiApiResponse, GeminiGenerateResponse, GeminiStreamChunk, GeminiStreamResponse } from "src/types";
 
 // Environment variables for Gemini API
-const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)
-  ?? (import.meta.env as any).GEMINI_API_KEY;
+let apiKey: string | undefined;
+
+if (!import.meta.env.DEV) {
+  apiKey = process.env.GEMINI_API_KEY;
+} else {
+  apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ?? (import.meta.env as any).GEMINI_API_KEY;
+}
 
 export function isGeminiConfigured() {
   return Boolean(apiKey);
 }
-
-export type GeminiGenerateRequest = {
-  prompt: string;
-  instructions?: string;
-  modelName?: string;
-  temperature?: number;
-  maxOutputTokens?: number;
-  topP?: number;
-  topK?: number;
-};
-
-// TypeScript interfaces for Gemini API response structure
-interface GroundingChunk {
-  web?: {
-    uri?: string;
-    title?: string;
-  };
-}
-
-interface GroundingSupport {
-  segment?: {
-    startIndex: number;
-    endIndex: number;
-    text: string;
-  };
-  groundingChunkIndices?: number[];
-}
-
-interface GroundingMetadata {
-  webSearchQueries?: string[];
-  searchEntryPoint?: {
-    renderedContent?: string;
-  };
-  groundingChunks?: GroundingChunk[];
-  groundingSupports?: GroundingSupport[];
-}
-
-interface GeminiCandidate {
-  content?: {
-    parts?: Array<{ text: string }>;
-    role?: string;
-  };
-  groundingMetadata?: GroundingMetadata;
-}
-
-interface GeminiApiResponse {
-  candidates?: GeminiCandidate[];
-  text?: string;
-}
-
-export type GeminiGenerateResponse = {
-  text: string;
-  textWithCitations: string;
-  searchQueries?: string[];
-  groundingMetadata?: GroundingMetadata;
-  groundingChunks?: GroundingChunk[];
-  groundingSupports?: GroundingSupport[];
-  searchEntryPoint?: string;
-  raw?: any;
-};
-
-export type GeminiStreamChunk = {
-  text: string;
-  isComplete: boolean;
-  groundingMetadata?: GroundingMetadata;
-};
-
-export type GeminiStreamResponse = {
-  stream: AsyncIterableIterator<GeminiStreamChunk>;
-  getFullResponse: () => Promise<GeminiGenerateResponse>;
-};
 
 function addCitations(text: string, groundingMetadata?: GroundingMetadata): string {
     if (!groundingMetadata?.groundingSupports || !groundingMetadata?.groundingChunks) {

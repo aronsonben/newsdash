@@ -30,7 +30,7 @@ export interface GroundingSupport {
   groundingChunkIndices?: number[];
 }
 
-interface GroundingMetadata {
+export interface GroundingMetadata {
   webSearchQueries?: string[];
   searchEntryPoint?: {
     renderedContent?: string;
@@ -39,7 +39,7 @@ interface GroundingMetadata {
   groundingSupports?: GroundingSupport[];
 }
 
-interface GeminiCandidate {
+export interface GeminiCandidate {
   content?: {
     parts?: Array<{ text: string }>;
     role?: string;
@@ -47,7 +47,7 @@ interface GeminiCandidate {
   groundingMetadata?: GroundingMetadata;
 }
 
-interface GeminiApiResponse {
+export interface GeminiApiResponse {
   candidates?: GeminiCandidate[];
   text?: string;
 }
