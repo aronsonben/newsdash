@@ -7,12 +7,17 @@ import Sidebar from './components/Sidebar';
 import NewsDashboard from './components/NewsDashboard';
 import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
+import SavedBlockModal from './components/SavedBlockModal';
+import SavedBlocksList from './components/SavedBlocksList';
 import { generateStreamWithGemini} from './lib/geminiClient';
 import { apiClient, firestoreCache } from './lib/apiClient';
-import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse } from './types';
+import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse, SavedBlock } from './types';
 import { FRESH_TTL_MS, CACHE_EXPIRY_MS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
 import { useLocalStorage } from './services/useLocalStorage';
-import { Timestamp } from 'firebase/firestore';
+import { useSavedBlocks } from './services/useSavedBlocks';
+import { useAuth } from './services/useAuth';
+import { Timestamp, doc, setDoc } from 'firebase/firestore';
+import { db } from './lib/firestore';
 import { getCacheState } from './lib/utils';
 
 
@@ -41,6 +46,61 @@ export default function App() {
   
   // Misc. state
   const [theme, setTheme] = useLocalStorage<string>('theme', 'dark');                     // css theme. defaults to dark.  
+
+  // Auth
+  const { user, loading: authLoading, signIn, signOut } = useAuth();
+
+  // Migrate anonymous session blocks to Firestore on sign-in.
+  // When the user was unauthenticated, blocks were saved to sessionStorage under
+  // 'newsdash_saved_blocks'. Once they sign in, write each block to their
+  // Firestore collection and clear the sessionStorage entry.
+  useEffect(() => {
+    if (!user) return;
+    const raw = sessionStorage.getItem('newsdash_saved_blocks');
+    if (!raw) return;
+    let anonBlocks: SavedBlock[];
+    try {
+      anonBlocks = JSON.parse(raw) as SavedBlock[];
+    } catch {
+      sessionStorage.removeItem('newsdash_saved_blocks');
+      return;
+    }
+    if (anonBlocks.length === 0) return;
+    anonBlocks.forEach(block => {
+      setDoc(doc(db, 'users', user.uid, 'saved_blocks', block.id), block).catch(() => {});
+    });
+    sessionStorage.removeItem('newsdash_saved_blocks');
+  }, [user?.uid]);
+
+  // Saved blocks
+  const { blocks: savedBlocks, addBlock, updateBlock, removeBlock, limitReached } = useSavedBlocks(user?.uid ?? null);
+  // pendingBlock: new block from a header click (not yet saved)
+  const [pendingBlock, setPendingBlock] = useState<Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'> | null>(null);
+  // editingBlock: existing saved block being edited
+  const [editingBlock, setEditingBlock] = useState<SavedBlock | null>(null);
+
+  const handleSaveBlock = (block: Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'>) => {
+    setPendingBlock(block);
+  };
+
+  const handleConfirmNew = (title: string, text: string) => {
+    if (!pendingBlock) return;
+    addBlock({ ...pendingBlock, title, text });
+    setPendingBlock(null);
+  };
+
+  const handleConfirmEdit = (title: string, text: string) => {
+    if (!editingBlock) return;
+    updateBlock(editingBlock.id, { title, text });
+    setEditingBlock(null);
+  };
+
+  const handleEditBlock = (block: SavedBlock) => setEditingBlock(block);
+
+  const handleDiscardModal = () => {
+    setPendingBlock(null);
+    setEditingBlock(null);
+  };
 
   // ––– EFFECTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
@@ -336,13 +396,17 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-screen font-grotesk bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))]">
-      <Header isDark={(theme === 'dark')} toggleTheme={() => setTheme((theme === 'dark') ? 'light' : 'dark')} apiStatus={geminiConfigured} />
+      <Header isDark={(theme === 'dark')} toggleTheme={() => setTheme((theme === 'dark') ? 'light' : 'dark')} apiStatus={geminiConfigured} user={user} authLoading={authLoading} onSignIn={signIn} onSignOut={signOut} />
       <MobileShortcutTray onSelect={handleShortcutSelect} selectedId={selectedShortcut?.id} />
       <main className="flex-1 flex min-h-0">
         <Sidebar 
           selectedId={selectedShortcut.id} 
           cachedIds={cachedIds}
-          onSelect={handleShortcutSelect} 
+          onSelect={handleShortcutSelect}
+          savedBlocks={savedBlocks}
+          onEditBlock={handleEditBlock}
+          onDeleteBlock={removeBlock}
+          limitReached={limitReached}
         />
         <div className="flex-1 p-4 max-w-full md:max-w-240 mx-auto">
           <section className="mb-2">
@@ -367,7 +431,17 @@ export default function App() {
             isFetching={isFetching}
             currentCacheObj={currentCacheObj}
             currentCacheState={currentCacheState}
+            onSaveBlock={handleSaveBlock}
           />
+          {/* Mobile saved blocks — hidden on desktop (sidebar shows them there) */}
+          <div className="md:hidden mt-6">
+            <SavedBlocksList
+              blocks={savedBlocks}
+              onEdit={handleEditBlock}
+              onDelete={removeBlock}
+              limitReached={limitReached}
+            />
+          </div>
           <Outlet />
         </div>
       </main>
@@ -378,6 +452,16 @@ export default function App() {
       </div>
       
       <Footer />
+
+      {/* Saved block modal — shown when creating a new block or editing an existing one */}
+      {(pendingBlock || editingBlock) && (
+        <SavedBlockModal
+          block={editingBlock ?? pendingBlock!}
+          onConfirm={editingBlock ? handleConfirmEdit : handleConfirmNew}
+          onDiscard={handleDiscardModal}
+          limitReached={editingBlock ? false : limitReached}
+        />
+      )}
     </div>
   );
 }

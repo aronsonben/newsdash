@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import newsdashgreen from '../assets/newsdash_green.png';
+import type { User } from 'firebase/auth';
 
 interface HeaderProps {
   isDark: boolean;
   toggleTheme: () => void;
   apiStatus: boolean;
+  user: User | null;
+  authLoading: boolean;
+  onSignIn: () => void;
+  onSignOut: () => void;
 }
 
-function AboutModal({ onClose }: { onClose: () => void }) {
+function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   return (
     <>
       <div
@@ -26,6 +31,15 @@ function AboutModal({ onClose }: { onClose: () => void }) {
         >
           ×
         </button>
+        {children}
+      </div>
+    </>
+  );
+}
+
+function AboutModal({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal onClose={onClose}>
         <h2 className="text-2xl font-semibold mb-4">About NewsDash</h2>
         <p className="mb-3" style={{ color: 'rgb(var(--text-secondary))' }}>
           NewsDash is an AI-supported, climate-oriented, locally-focused news dashboard built by {' '}
@@ -58,13 +72,44 @@ function AboutModal({ onClose }: { onClose: () => void }) {
         <p style={{ color: 'rgb(var(--text-muted))' }} className="text-sm">
           Version 1.0 · Built with React, Vite, and Tailwind CSS.
         </p>
-      </div>
-    </>
+    </Modal>
   );
 }
 
-export default function Header({ isDark, toggleTheme, apiStatus }: HeaderProps) {
+function AccountModal({ user, onSignOut, onClose }: { user: import('firebase/auth').User; onSignOut: () => void; onClose: () => void }) {
+  const createdAt = user.metadata.creationTime
+    ? new Date(user.metadata.creationTime).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    : 'Unknown';
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 className="text-xl font-semibold mb-5">My Account</h2>
+      <div className="space-y-3 mb-6">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'rgb(var(--text-muted))' }}>Email</p>
+          <p style={{ color: 'rgb(var(--text-primary))' }}>{user.email ?? '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'rgb(var(--text-muted))' }}>Member since</p>
+          <p style={{ color: 'rgb(var(--text-primary))' }}>{createdAt}</p>
+        </div>
+      </div>
+      <button
+        onClick={() => { onSignOut(); onClose(); }}
+        className="w-full px-4 py-2 rounded-lg text-white font-medium transition-colors duration-200"
+        style={{ backgroundColor: 'rgb(var(--button-primary))' }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))'; }}
+      >
+        Sign out
+      </button>
+    </Modal>
+  );
+}
+
+export default function Header({ isDark, toggleTheme, apiStatus, user, authLoading, onSignIn, onSignOut }: HeaderProps) {
   const [showAbout, setShowAbout] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
   return (
     <>
     <header 
@@ -118,6 +163,33 @@ export default function Header({ isDark, toggleTheme, apiStatus }: HeaderProps) 
           <p className="text-xs" style={{ color: 'rgb(var(--text-muted))' }}>{apiStatus ? '✅': '❌'}</p>
         </div> */}
         <span style={{ color: 'rgb(var(--text-muted))' }}>·</span>
+        {!authLoading && (
+          user ? (
+            <button
+              onClick={() => setShowAccount(true)}
+              className="w-9 h-9 rounded-full border-0 flex items-center justify-center transition-colors duration-200 cursor-pointer text-white"
+              style={{ backgroundColor: 'rgb(var(--button-primary))' }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))'; }}
+              title={`Signed in as ${user.displayName ?? user.email}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={onSignIn}
+              className="px-3 py-2 rounded-lg text-white border-0 transition-colors duration-200 font-medium text-sm"
+              style={{ backgroundColor: 'rgb(var(--button-primary))' }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary-hover))'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgb(var(--button-primary))'; }}
+            >
+              Sign in with Google
+            </button>
+          )
+        )}
+        <span style={{ color: 'rgb(var(--text-muted))' }}>·</span>
         <button
           onClick={() => setShowAbout(true)}
           className="w-9 h-9 rounded-full border-0 flex items-center justify-center font-bold text-base transition-colors duration-200 cursor-pointer text-white"
@@ -128,29 +200,10 @@ export default function Header({ isDark, toggleTheme, apiStatus }: HeaderProps) 
         >
           ?
         </button>
-        {/* <span style={{ color: 'rgb(var(--text-muted))' }}>·</span> */}
-        {/* <a 
-          href="https://youtube.com/@ConcourseFM" 
-          target="_blank" 
-          rel="noreferrer" 
-          className="hover:opacity-80 transition-opacity"
-          style={{ color: 'rgb(var(--accent))' }}
-        >
-          FM
-        </a>
-        <span style={{ color: 'rgb(var(--text-muted))' }}>·</span>
-        <a 
-          href="https://bsky.app/profile/concourse-codes.bsky.social" 
-          target="_blank" 
-          rel="noreferrer" 
-          className="hover:opacity-80 transition-opacity"
-          style={{ color: 'rgb(var(--accent))' }}
-        >
-          Contact
-        </a> */}
       </div>
     </header>
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showAccount && user && <AccountModal user={user} onSignOut={onSignOut} onClose={() => setShowAccount(false)} />}
     </>
   );
 }

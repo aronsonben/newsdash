@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
-import { CacheData, Shortcut } from 'src/types';
+import { CacheData, Shortcut, SavedBlock } from 'src/types';
 import shortcuts from '../../shortcuts.json';
+import SavedBlocksList from './SavedBlocksList';
 
 const BASE_SHORTCUTS: Shortcut[] = shortcuts;
 
 interface SidebarProps { 
   selectedId: string;
   cachedIds: string[];
-  onSelect: (s: Shortcut) => void; 
+  onSelect: (s: Shortcut) => void;
+  savedBlocks: SavedBlock[];
+  onEditBlock: (block: SavedBlock) => void;
+  onDeleteBlock: (id: string) => void;
+  limitReached: boolean;
 }
 
-export function Sidebar({ selectedId, cachedIds, onSelect  }: SidebarProps) {
+export function Sidebar({ selectedId, cachedIds, onSelect, savedBlocks, onEditBlock, onDeleteBlock, limitReached }: SidebarProps) {
 
 
   return (
@@ -79,6 +84,21 @@ export function Sidebar({ selectedId, cachedIds, onSelect  }: SidebarProps) {
           );
         })}
       </div>
+
+      {/* Saved blocks — only shown on lg where sidebar is wide enough for labels */}
+      {savedBlocks.length > 0 && (
+        <div
+          className="hidden lg:block mt-2 pt-4 border-t"
+          style={{ borderColor: 'rgb(var(--border))' }}
+        >
+          <SavedBlocksList
+            blocks={savedBlocks}
+            onEdit={onEditBlock}
+            onDelete={onDeleteBlock}
+            limitReached={limitReached}
+          />
+        </div>
+      )}
     </aside>
   );
 }

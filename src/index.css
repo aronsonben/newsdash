@@ -338,6 +338,28 @@
   margin-bottom: 0;
 }
 
+/* ––– Tiptap editor (ProseMirror) –––
+   Inherits all markdown-content styles via the parent wrapper.
+   Only editor-specific overrides are needed here.
+*/
+.ProseMirror {
+  outline: none;
+  min-height: 160px;
+}
+
+/* Prevent double margin at the very start/end of the editor area */
+.ProseMirror > *:first-child { margin-top: 0; }
+.ProseMirror > *:last-child  { margin-bottom: 0; }
+
+/* Empty-editor placeholder */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: rgb(var(--text-muted));
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
 /* Fallback styles using CSS custom properties */
 .theme-bg-primary { background-color: rgb(var(--bg-primary)); }
 .theme-bg-secondary { background-color: rgb(var(--bg-secondary)); }

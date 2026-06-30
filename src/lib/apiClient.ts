@@ -1,4 +1,4 @@
-import { CacheData, GeminiStreamResponse, GeminiGenerateResponse } from 'src/types';
+import { CacheData, GeminiStreamResponse, GeminiGenerateResponse, SavedBlock } from 'src/types';
 import { generateStreamWithGemini } from './geminiClient';
 
 export type GenerateRequest = {
@@ -118,3 +118,44 @@ export const firestoreCache = {
     return true;
   },
 };
+
+// ─── Saved blocks (via Vercel serverless functions) ───────────────────────────
+
+export const blocksClient = {
+  async readAll(userId: string): Promise<SavedBlock[]> {
+    const res = await fetch(`/api/blocks-read?userId=${encodeURIComponent(userId)}`);
+    if (!res.ok) {
+      console.error('[blocksClient.readAll] API error', res.status);
+      return [];
+    }
+    const data = await res.json();
+    return (data.blocks ?? []) as SavedBlock[];
+  },
+
+  async write(userId: string, block: SavedBlock): Promise<boolean> {
+    const res = await fetch('/api/blocks-write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, block }),
+    });
+    if (!res.ok) {
+      console.error('[blocksClient.write] API error', res.status);
+      return false;
+    }
+    return true;
+  },
+
+  async delete(userId: string, blockId: string): Promise<boolean> {
+    const res = await fetch('/api/blocks-delete', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, blockId }),
+    });
+    if (!res.ok) {
+      console.error('[blocksClient.delete] API error', res.status);
+      return false;
+    }
+    return true;
+  },
+};
+

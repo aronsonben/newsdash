@@ -94,6 +94,24 @@ export interface CacheData {
 }
 
 
+// ––– Saved Block Types ––––––––––––––––––––––––––––––
+
+export type BlockSegment = {
+  heading: string;
+  content: string;
+  citations: GroundingChunk[];
+};
+
+export type SavedBlock = {
+  id: string;
+  title: string;
+  text: string;
+  citations: GroundingChunk[];
+  createdAt: number;
+  updatedAt: number;
+};
+
+
 // ––– Other Types ––––––––––––––––––––––––––––––
 
 export type CloudSaveState = 'idle' | 'saving' | 'saved' | 'error';

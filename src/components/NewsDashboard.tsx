@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
-import { GeminiGenerateResponse, GroundingChunk, CloudSaveState, NewsItem, CacheData, Shortcut } from 'src/types';
+import { GeminiGenerateResponse, GroundingChunk, CloudSaveState, NewsItem, CacheData, Shortcut, BlockSegment, SavedBlock } from 'src/types';
 import { FRESH_TTL_MS, SEGMENT_COLORS } from '../constants';
-import { getCacheState } from '../lib/utils';
+import { getCacheState, segmentMarkdownByHeaders } from '../lib/utils';
 
 
 interface NewsDashboardProps { 
@@ -16,9 +16,10 @@ interface NewsDashboardProps {
   onRunAgain: () => void; 
   currentCacheObj: CacheData | null;
   currentCacheState: string;
+  onSaveBlock?: (block: Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'>) => void;
 }
 
-export default function NewsDashboard({ data, isStreaming, streamingText, onSaveToCloud, cloudSaveState = 'idle', loading, isFetching, onRunAgain, currentCacheObj, currentCacheState }: NewsDashboardProps) {
+export default function NewsDashboard({ data, isStreaming, streamingText, onSaveToCloud, cloudSaveState = 'idle', loading, isFetching, onRunAgain, currentCacheObj, currentCacheState, onSaveBlock }: NewsDashboardProps) {
   // ––– STATE ––––––––––––
   // Citation Popup State
   const dialogRef = React.useRef<HTMLDialogElement>(null);
@@ -27,6 +28,26 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
   // Misc. State
   const [isSaveHovered, setIsSaveHovered] = React.useState<boolean>(false);
   
+
+  // Pre-process response text into header segments for the save-block feature.
+  const segments: BlockSegment[] = React.useMemo(() => {
+    if (!data?.textWithCitations || !data?.groundingChunks) return [];
+    return segmentMarkdownByHeaders(data.textWithCitations, data.groundingChunks);
+  }, [data?.textWithCitations, data?.groundingChunks]);
+
+  const extractHeadingText = (children: React.ReactNode): string => {
+    if (typeof children === 'string') return children;
+    if (Array.isArray(children)) return children.map(c => (typeof c === 'string' ? c : '')).join('');
+    return String(children ?? '');
+  };
+
+  const handleHeaderClick = (headingText: string) => {
+    if (!onSaveBlock) return;
+    const segment = segments.find(s => s.heading === headingText);
+    if (segment) {
+      onSaveBlock({ title: segment.heading, text: segment.content, citations: segment.citations });
+    }
+  };
 
   // isFreshCache == true IF the timestamp from cache obj is from within the past 24hr
   const isFreshCache = currentCacheState === 'fresh' || currentCacheState === 'stale';
@@ -96,12 +117,50 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
     h1: ({ children }) => (
       <h1 className="markdown-content" style={{ color: 'rgb(var(--text-primary))' }}>{children}</h1>
     ),
-    h2: ({ children }) => (
-      <h2 className="markdown-content" style={{ color: 'rgb(var(--text-primary))' }}>{children}</h2>
-    ),
-    h3: ({ children }) => (
-      <h3 className="markdown-content" style={{ color: 'rgb(var(--text-primary))' }}>{children}</h3>
-    ),
+    h2: ({ children }) => {
+      const isClickable = !!onSaveBlock && segments.length > 0;
+      const text = extractHeadingText(children);
+      return (
+        <h2
+          className={`markdown-content${isClickable ? ' group cursor-pointer' : ''}`}
+          style={{ color: 'rgb(var(--text-primary))' }}
+          onClick={isClickable ? () => handleHeaderClick(text) : undefined}
+          title={isClickable ? 'Click to save this section' : undefined}
+        >
+          {children}
+          {isClickable && (
+            <span
+              className="ml-2 text-xs opacity-0 group-hover:opacity-60 transition-opacity select-none"
+              style={{ color: 'rgb(var(--accent))' }}
+            >
+              ⊞ save
+            </span>
+          )}
+        </h2>
+      );
+    },
+    h3: ({ children }) => {
+      const isClickable = !!onSaveBlock && segments.length > 0;
+      const text = extractHeadingText(children);
+      return (
+        <h3
+          className={`markdown-content${isClickable ? ' group cursor-pointer' : ''}`}
+          style={{ color: 'rgb(var(--text-primary))' }}
+          onClick={isClickable ? () => handleHeaderClick(text) : undefined}
+          title={isClickable ? 'Click to save this section' : undefined}
+        >
+          {children}
+          {isClickable && (
+            <span
+              className="ml-2 text-xs opacity-0 group-hover:opacity-60 transition-opacity select-none"
+              style={{ color: 'rgb(var(--accent))' }}
+            >
+              ⊞ save
+            </span>
+          )}
+        </h3>
+      );
+    },
     h4: ({ children }) => (
       <h4 className="markdown-content" style={{ color: 'rgb(var(--text-secondary))' }}>{children}</h4>
     ),
