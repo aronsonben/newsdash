@@ -277,9 +277,9 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
               >
                 <button
                   onClick={onSaveToCloud}
-                  disabled={cloudSaveState === 'saving' || isFreshCache}
+                  disabled={cloudSaveState === 'saving'}
                   className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={isFreshCache ? 'Already saved within the last 24 hours' : cloudSaveState === 'error' ? 'Save failed — click to retry' : 'Save this response to the cloud database'}
+                  title={cloudSaveState === 'error' ? 'Save failed — click to retry' : 'Save this response to the cloud database'}
                 >
                   {cloudSaveState === 'saving' ? 'Saving…' : cloudSaveState === 'error' ? 'Retry Save ↑' : '↑ Save to Cloud'}
                 </button>

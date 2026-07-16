@@ -226,7 +226,7 @@ export default function App() {
         setIsFetching(false);
         return;
       } else if (firestoreResult.status === 'fresh' || firestoreResult.status === 'stale') {
-        // console.log("[handleShortcutSelect] Fetched the cached object from the database.");
+        console.log("[handleShortcutSelect] Fetched the cached object from the database.");
         const data = firestoreResult.data;
         const timestamp = new Date(firestoreResult.updatedAt).getTime();
         // We found a fresh cache object in the database, it's just not in this user's localStorage.
@@ -346,7 +346,6 @@ export default function App() {
         modelName: 'gemini-2.5-flash'
       });
 
-      
       
       let accumulatedText = '';
       

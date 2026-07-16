@@ -88,7 +88,7 @@ export function Sidebar({ selectedId, cachedIds, onSelect, savedBlocks, onEditBl
       {/* Saved blocks — only shown on lg where sidebar is wide enough for labels */}
       {savedBlocks.length > 0 && (
         <div
-          className="hidden lg:block mt-2 pt-4 border-t"
+          className="lg:block mt-2 pt-4 border-t"
           style={{ borderColor: 'rgb(var(--border))' }}
         >
           <SavedBlocksList
