@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createHmac } from 'crypto';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { Resend } from 'resend';
@@ -57,8 +58,6 @@ function extractFirstParagraph(text: string): string {
  * unsubscribe links embedded in outbound emails.
  */
 function generateUnsubscribeToken(userId: string): string {
-  // Import here to avoid issues in environments where crypto is not available at module level
-  const { createHmac } = require('crypto');
   const secret = process.env.UNSUBSCRIBE_HMAC_SECRET ?? '';
   return createHmac('sha256', secret).update(userId).digest('hex');
 }
