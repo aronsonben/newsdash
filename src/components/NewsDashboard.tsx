@@ -70,7 +70,7 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
   // savedBy is the durable discriminator: present = originated from Firestore, absent = locally run
   const hasSavedBy = !!currentCacheObj?.savedBy;
   const displayRunner = !hasSavedBy
-    ? 'you'
+    ? 'anonymous'
     : (storedUsername && storedUsername === currentCacheObj?.savedBy ? 'you' : (currentCacheObj?.savedBy || 'anonymous'));
   const STALE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // prompt to re-run after 3 days
   const isOld = !!currentCacheObj && (Date.now() - currentCacheObj.updatedAt) > STALE_THRESHOLD_MS;

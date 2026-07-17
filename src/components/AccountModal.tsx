@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { User } from 'firebase/auth';
 import Modal from './Modal';
 import { useLocalStorage } from '../services/useLocalStorage';
+import { getUserProfile } from '../lib/firestore';
 
 interface AccountModalProps {
   user: User;
@@ -17,6 +18,19 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
   const [storedUsername, setStoredUsername] = useLocalStorage<string>('newsdash_username', '');
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+
+  // ── Weekly digest subscription state ─────────────────────────────────────
+  const [weeklyReport, setWeeklyReport] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [subscribeLoading, setSubscribeLoading] = useState(false);
+
+  // Load current subscription status from the users/{uid} Firestore document on open.
+  useEffect(() => {
+    getUserProfile(user.uid)
+      .then(profile => setWeeklyReport(profile?.weeklyReport ?? false))
+      .catch(() => {})
+      .finally(() => setProfileLoading(false));
+  }, [user.uid]);
 
   const startEditing = () => {
     setEditValue(storedUsername);
@@ -34,6 +48,31 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSave();
     if (e.key === 'Escape') handleCancel();
+  };
+
+  /**
+   * Calls the subscribe or unsubscribe API endpoint when the user toggles
+   * the weekly digest opt-in, then updates local UI state on success.
+   */
+  const handleToggleWeeklyReport = async () => {
+    const newValue = !weeklyReport;
+    setSubscribeLoading(true);
+    try {
+      const endpoint = newValue ? '/api/subscribe' : '/api/unsubscribe';
+      const body = newValue
+        ? { userId: user.uid, email: user.email }
+        : { userId: user.uid };
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      setWeeklyReport(newValue);
+    } catch (err) {
+      console.error('[AccountModal] Failed to update subscription:', err);
+    } finally {
+      setSubscribeLoading(false);
+    }
   };
 
   return (
@@ -93,6 +132,33 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
               >
                 Edit
               </button>
+            </div>
+          )}
+        </div>
+
+        {/* Weekly digest opt-in */}
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: 'rgb(var(--text-muted))' }}>Weekly Digest</p>
+          {profileLoading ? (
+            <p className="text-sm" style={{ color: 'rgb(var(--text-muted))' }}>Loading…</p>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                role="switch"
+                aria-checked={weeklyReport}
+                disabled={subscribeLoading}
+                onClick={handleToggleWeeklyReport}
+                className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50"
+                style={{ backgroundColor: weeklyReport ? 'rgb(var(--button-primary))' : 'rgb(var(--border))' }}
+              >
+                <span
+                  className="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200"
+                  style={{ transform: weeklyReport ? 'translateX(18px)' : 'translateX(2px)' }}
+                />
+              </button>
+              <p className="text-sm" style={{ color: 'rgb(var(--text-secondary))' }}>
+                {weeklyReport ? 'Subscribed' : 'Not subscribed'} &mdash; weekly news digest to {user.email}
+              </p>
             </div>
           )}
         </div>

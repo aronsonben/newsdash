@@ -113,6 +113,20 @@ export type SavedBlock = {
 };
 
 
+// ––– User & Subscription Types ––––––––––––––––––––––––––––––
+
+export type UserProfile = {
+  email: string;
+  createdAt: number;
+  weeklyReport: boolean;
+};
+
+export type EmailSubscription = {
+  email: string;
+  subscribedAt: number;
+  active: boolean;
+};
+
 // ––– Other Types ––––––––––––––––––––––––––––––
 
 export type CloudSaveState = 'idle' | 'saving' | 'saved' | 'error';
