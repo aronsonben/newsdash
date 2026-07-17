@@ -145,8 +145,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const appUrl = process.env.APP_URL ?? 'https://newsdash.vercel.app';
-  const fromEmail = process.env.EMAIL_FROM ?? 'onboarding@resend.dev';
+  const appUrl = process.env.NODE_ENV === 'development' ? (process.env.DEV_APP_URL ?? 'https://newsdash.concourse.codes') : (process.env.APP_URL ?? 'https://newsdash.concourse.codes');
+  const fromEmail = process.env.NODE_ENV === 'development' ? (process.env.LOCAL_EMAIL_FROM ?? 'onboarding@resend.dev') : (process.env.EMAIL_FROM ?? 'onboarding@resend.dev');
 
   try {
     const db = getDb();
