@@ -105,11 +105,11 @@ export const firestoreCache = {
   },
 
   // Write to the Firestore db
-  async save(promptId: string, data: GeminiGenerateResponse): Promise<boolean> {
+  async save(promptId: string, data: GeminiGenerateResponse, savedBy?: string): Promise<boolean> {
     const res = await fetch('/api/cache-write', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ promptId, data }),
+      body: JSON.stringify({ promptId, data, savedBy }),
     });
     if (!res.ok) {
       console.error('[firestoreCache.save] API error', res.status, await res.text());

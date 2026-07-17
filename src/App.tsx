@@ -9,6 +9,8 @@ import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
 import SavedBlockModal from './components/SavedBlockModal';
 import SavedBlocksList from './components/SavedBlocksList';
+import SaveBlockWarningModal from './components/SaveBlockWarningModal';
+import UsernamePromptModal from './components/UsernamePromptModal';
 import { generateStreamWithGemini} from './lib/geminiClient';
 import { apiClient, firestoreCache } from './lib/apiClient';
 import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse, SavedBlock } from './types';
@@ -46,6 +48,9 @@ export default function App() {
   
   // Misc. state
   const [theme, setTheme] = useLocalStorage<string>('theme', 'dark');                     // css theme. defaults to dark.  
+  const [storedUsername, setStoredUsername] = useLocalStorage<string>('newsdash_username', '');
+  const [isUsernameModalOpen, setIsUsernameModalOpen] = useState<boolean>(false);
+  const [anonPlaceholder, setAnonPlaceholder] = useState<string>('');
 
   // Auth
   const { user, loading: authLoading, signIn, signOut } = useAuth();
@@ -78,9 +83,49 @@ export default function App() {
   const [pendingBlock, setPendingBlock] = useState<Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'> | null>(null);
   // editingBlock: existing saved block being edited
   const [editingBlock, setEditingBlock] = useState<SavedBlock | null>(null);
+  // warning modal for unauthenticated users attempting to save a block
+  const [showSaveBlockWarning, setShowSaveBlockWarning] = useState<boolean>(false);
+  const [pendingBlockForWarning, setPendingBlockForWarning] = useState<Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'> | null>(null);
 
+  // Session-scoped user preferences (sessionStorage so they reset on each new browser session)
+  const SESSION_PREFS_KEY = 'newsdash_user_prefs';
+  const getSessionPrefs = (): Record<string, boolean> => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_PREFS_KEY) ?? '{}'); } catch { return {}; }
+  };
+  const setSessionPref = (key: string, value: boolean) => {
+    try { sessionStorage.setItem(SESSION_PREFS_KEY, JSON.stringify({ ...getSessionPrefs(), [key]: value })); } catch {}
+  };
+
+  /**
+   * Saves a block of text to localStorage for the user
+   */
   const handleSaveBlock = (block: Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (!user && !getSessionPrefs().hasSeenSaveBlockWarning) {
+      setPendingBlockForWarning(block);
+      setShowSaveBlockWarning(true);
+      return;
+    }
     setPendingBlock(block);
+  };
+
+  /**
+   * Warns the user that their saved blocks won't be persisted
+   */
+  const handleSaveBlockWarningSignIn = () => {
+    setSessionPref('hasSeenSaveBlockWarning', true);
+    setShowSaveBlockWarning(false);
+    signIn();
+    // The block will be available again after sign-in via the normal flow
+    setPendingBlockForWarning(null);
+  };
+
+  const handleSaveBlockWarningAcknowledge = () => {
+    setSessionPref('hasSeenSaveBlockWarning', true);
+    setShowSaveBlockWarning(false);
+    if (pendingBlockForWarning) {
+      setPendingBlock(pendingBlockForWarning);
+      setPendingBlockForWarning(null);
+    }
   };
 
   const handleConfirmNew = (title: string, text: string) => {
@@ -250,11 +295,28 @@ export default function App() {
     setIsFetching(false);
   };
 
-  const handleSaveToCloud = async () => {
+  const performCloudSave = async (username: string) => {
     if (!newsData || !selectedShortcut) return;
     setCloudSaveState('saving');
-    const success = await firestoreCache.save(selectedShortcut.id, newsData);
+    const success = await firestoreCache.save(selectedShortcut.id, newsData, username);
     setCloudSaveState(success ? 'saved' : 'error');
+  };
+
+  const handleSaveToCloud = async () => {
+    if (!newsData || !selectedShortcut) return;
+    if (!storedUsername) {
+      const placeholder = `anonymous${Math.floor(100 + Math.random() * 900)}`;
+      setAnonPlaceholder(placeholder);
+      setIsUsernameModalOpen(true);
+      return;
+    }
+    performCloudSave(storedUsername);
+  };
+
+  const handleUsernameConfirm = (username: string) => {
+    setStoredUsername(username);
+    setIsUsernameModalOpen(false);
+    performCloudSave(username);
   };
 
   /**
@@ -452,6 +514,15 @@ export default function App() {
       
       <Footer />
 
+      {/* Save block warning modal — shown once per session for unauthenticated users */}
+      {showSaveBlockWarning && (
+        <SaveBlockWarningModal
+          onSignIn={handleSaveBlockWarningSignIn}
+          onAcknowledge={handleSaveBlockWarningAcknowledge}
+          onClose={() => { setShowSaveBlockWarning(false); setPendingBlockForWarning(null); }}
+        />
+      )}
+
       {/* Saved block modal — shown when creating a new block or editing an existing one */}
       {(pendingBlock || editingBlock) && (
         <SavedBlockModal
@@ -461,6 +532,15 @@ export default function App() {
           limitReached={editingBlock ? false : limitReached}
         />
       )}
+
+      {/* Username prompt — shown on first-ever Save to Cloud */}
+      <UsernamePromptModal
+        isOpen={isUsernameModalOpen}
+        defaultValue={user?.email ? user.email.split('@')[0] : anonPlaceholder}
+        anonPlaceholder={anonPlaceholder}
+        onConfirm={handleUsernameConfirm}
+        onClose={() => setIsUsernameModalOpen(false)}
+      />
     </div>
   );
 }

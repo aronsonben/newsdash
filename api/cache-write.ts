@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { promptId, data } = req.body ?? {};
+  const { promptId, data, savedBy } = req.body ?? {};
 
   if (!promptId || typeof promptId !== 'string') {
     return res.status(400).json({ error: '`promptId` is required' });
@@ -63,6 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       searchEntryPoint:  data.searchEntryPoint  ?? null,
     },
     updatedAt:         Timestamp.now().toMillis(),
+    ...(savedBy && typeof savedBy === 'string' ? { savedBy } : {}),
   };
 
   try {

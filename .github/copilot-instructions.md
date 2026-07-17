@@ -33,5 +33,15 @@ For the following topics, please add a bit more explanation in your response tha
   - Caching
   - Serverless Functions
 
+## Creating Functions
 
+When created JavaScript or TypeScript functions anywhere in the code, always add a documentation comment block briefly explaining what that function is doing in the context of the app flow.
+
+Example:
+```
+/** 
+ * Saves a block of text to localStorage
+ **/
+const handleSaveBlock(...) { ... }
+```
 

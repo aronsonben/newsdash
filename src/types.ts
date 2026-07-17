@@ -91,6 +91,7 @@ export interface CacheData {
   id: string;
   data: GeminiGenerateResponse;
   updatedAt: number;
+  savedBy?: string;
 }
 
 
