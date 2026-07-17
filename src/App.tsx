@@ -14,7 +14,7 @@ import UsernamePromptModal from './components/UsernamePromptModal';
 import { generateStreamWithGemini} from './lib/geminiClient';
 import { apiClient, firestoreCache } from './lib/apiClient';
 import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse, SavedBlock } from './types';
-import { FRESH_TTL_MS, CACHE_EXPIRY_MS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
+import { BASE_SHORTCUTS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
 import { useLocalStorage } from './services/useLocalStorage';
 import { useSavedBlocks } from './services/useSavedBlocks';
 import { useAuth } from './services/useAuth';
@@ -149,14 +149,14 @@ export default function App() {
 
   // ––– EFFECTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-  // Auto-load cached data for the default shortcut on first mount
+  // On first mount: load the default shortcut (critical path), then background-prefetch
+  // cache for all other shortcuts so switching between them is instant.
   useEffect(() => {
-    handleShortcutSelect(DEFAULT_SHORTCUT);
-
-    // TODO: put this in local state. safe to assume if configured once will be configured... also, i'm using my own API key so this check is kinda redundant.
-    // let gemini = isGeminiConfigured();
-    // console.log("[App] Gemini configured: ", gemini);
-    // setGeminiConfigured(gemini);
+    const init = async () => {
+      await handleShortcutSelect(DEFAULT_SHORTCUT);
+      prefetchAllShortcuts();
+    };
+    init();
   }, []);
 
   // Apply theme to document
@@ -194,10 +194,33 @@ export default function App() {
 
   // ––– HANDLER & AUX FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-  const isExpired = (timestamp: number): boolean => {
-    const timeDifference = (Date.now() - timestamp);
-    return timeDifference > CACHE_EXPIRY_MS;
-  }
+  /**
+   * Background-fetches Firestore cache for all non-default shortcuts and hydrates
+   * promptCache (localStorage) so switching between shortcuts is instant.
+   * Does not touch any UI state — runs silently after the critical render.
+   */
+  const prefetchAllShortcuts = async () => {
+    const otherShortcuts = BASE_SHORTCUTS.filter(s => s.id !== DEFAULT_SHORTCUT.id);
+    await Promise.allSettled(
+      otherShortcuts.map(async (shortcut) => {
+        // Skip if already in localStorage — no DB call needed
+        const alreadyCached = promptCache.find(e => e.id === shortcut.id);
+        if (alreadyCached) return;
+        try {
+          const result = await firestoreCache.read(shortcut.id);
+          if (result.status === 'fresh' || result.status === 'stale') {
+            setPromptCache(prev => {
+              // Guard against a race where two calls resolve simultaneously
+              if (prev.some(e => e.id === shortcut.id)) return prev;
+              return [...prev, result.data];
+            });
+          }
+        } catch {
+          // Silent fail — prefetch is best-effort, does not affect the user
+        }
+      })
+    );
+  };
 
   /**
    * Handles the selection of a shortcut from the sidebar by trying 
@@ -233,52 +256,30 @@ export default function App() {
     // 1. Check localStorage first
     const cachedObj = promptCache.find((entry) => entry.id === selectedShortcut.id);
 
-    // If the cache object was found in localStorage, make sure it hasn't expired:
+    // If the cache object was found in localStorage, show it immediately (fresh or stale).
     if (cachedObj) {
       console.log(`[handleShortcutSelect] Found a cached object in localStorage for ${selectedShortcut.id} `, cachedObj);
-
-      // const cacheObjExpired = isExpired(new Date(cachedObj.updatedAt).getTime());
       const cacheObjState = getCacheState(cachedObj);
-
-      // The cache object found in localStorage is expired...
-      // TODO: tell the user they should run it again
-      if (cacheObjState === 'expired') {
-        console.log("[handleShortcutSelect] The cache has expired for: ", shortcut.id, ". Deleting from localStorage. You should run it again.");
-
-        // Remove the existing cachedObj from the localStorage-based `promptCache`
-        setPromptCache((prev) => prev.filter((entry) => entry.id !== cachedObj.id));
-        // TODO: DO I NEED TO?? Clear the data for all the other state
-        setNewsData(null);
-        setIsFetching(false);
-        return;
-      } else {
-        console.log("[handleShortcutSelect] We found the cache object, updating the UI for: ", shortcut.id);
-        setNewsData(cachedObj.data);
-        // setStreamingText(cachedObj.data.textWithCitations);
-        setCurrentCacheObj(cachedObj);
-        setCurrentCacheState(cacheObjState);
-        // setCacheTimestamp(cachedObj.updatedAt);  // set timestamp to the date the response data in promptCache was cached at
-        setIsFetching(false);
-        return;
-      }
+      setNewsData(cachedObj.data);
+      setCurrentCacheObj(cachedObj);
+      setCurrentCacheState(cacheObjState);
+      setIsFetching(false);
+      return;
     }
 
     // 2. Check Firestore for the object 
     try {
       const firestoreResult = await firestoreCache.read(selectedShortcut.id);
-      if (firestoreResult.status === 'expired') {
-        console.log("[handleShortcutSelect] Fetched the cached object from the database, but it is expired. You should run it again for the latest news.");
-        setIsFetching(false);
-        return;
-      } else if (firestoreResult.status === 'fresh' || firestoreResult.status === 'stale') {
+      if (firestoreResult.status === 'fresh' || firestoreResult.status === 'stale') {
         console.log("[handleShortcutSelect] Fetched the cached object from the database.");
         const data = firestoreResult.data;
-        const timestamp = new Date(firestoreResult.updatedAt).getTime();
-        // We found a fresh cache object in the database, it's just not in this user's localStorage.
+        // We found a cache object in the database, it's just not in this user's localStorage.
         // Hydrate localStorage so next visit is instant
         setPromptCache([data, ...promptCache]);
         setNewsData(data.data as GeminiGenerateResponse);
         setStreamingText(data.data.textWithCitations);
+        setCurrentCacheObj(data);
+        setCurrentCacheState(getCacheState(data));
         setCloudSaveState('saved'); // already in Firestore
         setIsFetching(false);
         return;
@@ -295,10 +296,22 @@ export default function App() {
     setIsFetching(false);
   };
 
+  /**
+   * Saves the current response to Firestore, then patches the matching localStorage
+   * cache entry with savedBy so cloud attribution persists across page reloads.
+   */
   const performCloudSave = async (username: string) => {
     if (!newsData || !selectedShortcut) return;
     setCloudSaveState('saving');
     const success = await firestoreCache.save(selectedShortcut.id, newsData, username);
+    if (success) {
+      // Patch the localStorage entry so savedBy survives a refresh
+      setPromptCache(prev =>
+        prev.map(entry =>
+          entry.id === selectedShortcut.id ? { ...entry, savedBy: username } : entry
+        )
+      );
+    }
     setCloudSaveState(success ? 'saved' : 'error');
   };
 
@@ -422,23 +435,12 @@ export default function App() {
       // Get the full response with citations when streaming completes
       const fullResponse = await streamResponse.getFullResponse();
 
-      // TODO: investigate whether this can be made more efficient
-      // Update the prompt cache by either updating the existing one or adding a new one
+      // Always build a clean entry without savedBy — a local run is never cloud-attributed.
+      // Replacing only after a successful getFullResponse() means an error leaves the
+      // previous cache entry intact as a fallback.
       setPromptCache((prev) => {
-        const now = Timestamp.now().toMillis();
-        const existing = prev.find((entry) => entry.id === promptId);
-
-        if (existing) {
-          const updated = { ...existing, data: fullResponse, updatedAt: now };
-          return [updated, ...prev.filter((entry) => entry.id !== promptId)];
-        }
-
-        const newPromptCache: CacheData = {
-          id: promptId,
-          data: fullResponse,
-          updatedAt: now,
-        };
-        return [newPromptCache, ...prev];
+        const freshEntry: CacheData = { id: promptId, data: fullResponse, updatedAt: Timestamp.now().toMillis() };
+        return [freshEntry, ...prev.filter((entry) => entry.id !== promptId)];
       });
       
       // Send final response to NewsDashboard
@@ -492,6 +494,7 @@ export default function App() {
             isFetching={isFetching}
             currentCacheObj={currentCacheObj}
             currentCacheState={currentCacheState}
+            storedUsername={storedUsername}
             onSaveBlock={handleSaveBlock}
           />
           {/* Mobile saved blocks — hidden on desktop (sidebar shows them there) */}

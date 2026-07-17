@@ -4,6 +4,21 @@ import { GeminiGenerateResponse, GroundingChunk, CloudSaveState, NewsItem, Cache
 import { FRESH_TTL_MS, SEGMENT_COLORS } from '../constants';
 import { getCacheState, segmentMarkdownByHeaders } from '../lib/utils';
 
+/**
+ * Returns a human-readable relative time string (e.g. "just now", "3h ago", "5 days ago")
+ * based on the Unix timestamp (ms) of when a cache entry was last saved.
+ */
+function formatRelativeTime(updatedAt: number): string {
+  const diffMs = Date.now() - updatedAt;
+  const minutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (minutes < 1) return 'just now';
+  if (hours < 1) return `${minutes}m ago`;
+  if (days < 1) return `${hours}h ago`;
+  if (days === 1) return 'yesterday';
+  return `${days} days ago`;
+}
 
 interface NewsDashboardProps { 
   data: GeminiGenerateResponse | null;
@@ -16,10 +31,11 @@ interface NewsDashboardProps {
   onRunAgain: () => void; 
   currentCacheObj: CacheData | null;
   currentCacheState: string;
+  storedUsername?: string;
   onSaveBlock?: (block: Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'>) => void;
 }
 
-export default function NewsDashboard({ data, isStreaming, streamingText, onSaveToCloud, cloudSaveState = 'idle', loading, isFetching, onRunAgain, currentCacheObj, currentCacheState, onSaveBlock }: NewsDashboardProps) {
+export default function NewsDashboard({ data, isStreaming, streamingText, onSaveToCloud, cloudSaveState = 'idle', loading, isFetching, onRunAgain, currentCacheObj, currentCacheState, storedUsername, onSaveBlock }: NewsDashboardProps) {
   // ––– STATE ––––––––––––
   // Citation Popup State
   const dialogRef = React.useRef<HTMLDialogElement>(null);
@@ -49,9 +65,15 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
     }
   };
 
-  // isFreshCache == true IF the timestamp from cache obj is from within the past 24hr
-  const isFreshCache = currentCacheState === 'fresh' || currentCacheState === 'stale';
   const showActionBar = (currentCacheObj || (!!data && !isStreaming));
+
+  // savedBy is the durable discriminator: present = originated from Firestore, absent = locally run
+  const hasSavedBy = !!currentCacheObj?.savedBy;
+  const displayRunner = !hasSavedBy
+    ? 'you'
+    : (storedUsername && storedUsername === currentCacheObj?.savedBy ? 'you' : (currentCacheObj?.savedBy || 'anonymous'));
+  const STALE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // prompt to re-run after 3 days
+  const isOld = !!currentCacheObj && (Date.now() - currentCacheObj.updatedAt) > STALE_THRESHOLD_MS;
 
   // ––– CITATION POPUP HANDLERS ––––––––––––
   // these are for handling the pop-up that appears in the citation segment view
@@ -247,22 +269,16 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
           <span className="flex items-center gap-2">
             {currentCacheObj ? (
               <>
-                <span 
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: 'rgb(var(--dashboard-accent))' }}
-                ></span>
+                {hasSavedBy && <span style={{ color: 'rgb(var(--text-muted))' }}>☁</span>}
                 <span>
-                  Cached on
-                  <span
-                    className="p-1 rounded"
-                    style={{
-                      backgroundColor: isFreshCache && isSaveHovered ? 'rgb(var(--dashboard-accent))' : 'inherit',
-                      color: isFreshCache && isSaveHovered ? 'black' : 'inherit',
-                      transition: '0.33s ease'
-                    }}
-                  >
-                    {currentCacheObj?.updatedAt ? new Date(currentCacheObj?.updatedAt).toLocaleDateString() + ' at ' + new Date(currentCacheObj?.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown date'}
+                  {'Last run '}
+                  <span style={{ color: isOld ? 'rgb(var(--accent))' : 'rgb(var(--text-muted))' }}>
+                    {formatRelativeTime(currentCacheObj.updatedAt)}
                   </span>
+                  {' by '}
+                  <strong style={{ color: 'rgb(var(--text-secondary))' }}>
+                    {displayRunner}
+                  </strong>
                 </span>
               </>
             ) : (
@@ -277,9 +293,9 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
               >
                 <button
                   onClick={onSaveToCloud}
-                  disabled={cloudSaveState === 'saving'}
-                  className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={cloudSaveState === 'error' ? 'Save failed — click to retry' : 'Save this response to the cloud database'}
+                  disabled={hasSavedBy || cloudSaveState === 'saving'}
+                  className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer enabled:hover:bg-[rgb(var(--button-primary))] enabled:hover:text-[rgb(var(--text-primary))] enabled:hover:border-[rgb(var(--border))] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={hasSavedBy ? 'Already saved to cloud' : cloudSaveState === 'error' ? 'Save failed — click to retry' : 'Save this response to the cloud database'}
                 >
                   {cloudSaveState === 'saving' ? 'Saving…' : cloudSaveState === 'error' ? 'Retry Save ↑' : '↑ Save to Cloud'}
                 </button>
@@ -293,10 +309,11 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
             <button
               onClick={onRunAgain}
               disabled={loading}
-              className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer hover:bg-theme-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Run this prompt again to get fresh results"
+              className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer enabled:hover:bg-[rgb(var(--button-primary))] enabled:hover:text-[rgb(var(--text-primary))] enabled:hover:border-[rgb(var(--border))] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={isOld ? { backgroundColor: 'rgb(var(--accent))', borderColor: 'rgb(var(--accent))', color: 'black' } : {}}
+              title={isOld ? 'This data is over 3 days old — run again for the latest news' : 'Run this prompt again to get fresh results'}
             >
-              Run Again
+              {isOld ? 'Run again for latest ↑' : 'Run Again'}
             </button>
           </div>
         </div>

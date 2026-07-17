@@ -91,7 +91,7 @@ export const apiClient = {
 
 export type FirestoreReadResult =
   | { status: 'fresh' | 'stale'; data: CacheData; updatedAt: string; ageMs: number }
-  | { status: 'miss' | 'expired' };
+  | { status: 'miss' };
 
 export const firestoreCache = {
   // Read from the cache via Firestore db

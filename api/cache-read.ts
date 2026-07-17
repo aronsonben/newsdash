@@ -16,8 +16,7 @@ const app = initializeApp(firebaseConfig);
 
 // ─── TTL constants ────────────────────────────────────────────────────────────
 const FRESH_TTL_MS = 24 * 60 * 60 * 1000;      // < 24 h  → return immediately
-const STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000;  // 1–7 d   → return stale + hint
-// > 7 d → treat as miss so the client triggers a fresh fetch
+// ≥ 24 h → stale (still returned; no upper-bound expiry on DB reads)
 
 function getDb(): Firestore {
   const db = getFirestore(app);
@@ -82,16 +81,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const ageMs = Date.now() - storedUpdatedAt;
 
-    if (ageMs > STALE_TTL_MS) {
-      return res.status(200).json({ status: 'expired' });
-    }
-
+    // Always return the last known entry regardless of age.
+    // fresh = < 24 h, stale = ≥ 24 h. The client decides how to surface the age.
     const status = ageMs < FRESH_TTL_MS ? 'fresh' : 'stale';
 
     const existingPromptData: CacheData = {
       id: promptId,
       data: entryData,
       updatedAt: storedUpdatedAt,
+      ...(entry.savedBy && typeof entry.savedBy === 'string' ? { savedBy: entry.savedBy } : {}),
     };
 
     // console.log("[cache-read] Found the existingPromptData:  ", existingPromptData);

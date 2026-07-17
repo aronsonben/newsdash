@@ -1,26 +1,21 @@
 import { CacheData, BlockSegment, GroundingChunk } from "src/types";
-import { FRESH_TTL_MS, CACHE_EXPIRY_MS } from "../constants";
+import { FRESH_TTL_MS } from "../constants";
 
-export function getCacheState(cacheObj: CacheData | null) {
+/**
+ * Returns the freshness state of a cached entry.
+ * 'fresh'  = updated within the past 24 h (show without a staleness hint)
+ * 'stale'  = older than 24 h (show with a staleness hint; never hidden)
+ * 'none'   = no cache entry exists
+ */
+export function getCacheState(cacheObj: CacheData | null): 'none' | 'fresh' | 'stale' {
   if (!cacheObj) { return 'none'; }
 
-  let dateCachedAt: number = cacheObj.updatedAt;
-  let cacheDifference = Date.now() - dateCachedAt;
+  const cacheDifference = Date.now() - cacheObj.updatedAt;
 
-  // Cache is considered FRESH if it was updated within the past 24h
-  if ( cacheDifference < FRESH_TTL_MS ) {
+  if (cacheDifference < FRESH_TTL_MS) {
     return 'fresh';
   }
-  // Cache is considered STALE if it was updated within the past 7d
-  if ( cacheDifference < CACHE_EXPIRY_MS ) {
-    return 'stale';
-  }
-  // Cache is considered EXPIRED if it was updated more than 7d ago
-  if ( cacheDifference >= FRESH_TTL_MS && cacheDifference >= CACHE_EXPIRY_MS ) {
-    return 'expired';
-  }
-  // Cache is considered NONE if the cacheObj does not exist for some reason
-  return 'none';
+  return 'stale';
 }
 
 // Extracts GroundingChunks whose URIs appear as markdown links ([text](url)) in the given text.
