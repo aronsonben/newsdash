@@ -309,8 +309,8 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
             <button
               onClick={onRunAgain}
               disabled={loading}
-              className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer enabled:hover:bg-[rgb(var(--button-primary))] enabled:hover:text-[rgb(var(--text-primary))] enabled:hover:border-[rgb(var(--border))] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={isOld ? { backgroundColor: 'rgb(var(--accent))', borderColor: 'rgb(var(--accent))', color: 'black' } : {}}
+              className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer enabled:hover:bg-[rgb(var(--button-primary))]/20 enabled:hover:text-[rgb(var(--text-primary))] enabled:hover:border-[rgb(var(--border))] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={isOld ? { backgroundColor: 'rgb(var(--accent))', borderColor: 'rgb(var(--accent))', color: 'rgb(var(--bg-primary))' } : {}}
               title={isOld ? 'This data is over 3 days old — run again for the latest news' : 'Run this prompt again to get fresh results'}
             >
               {isOld ? 'Run again for latest ↑' : 'Run Again'}

@@ -23,6 +23,7 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
   const [weeklyReport, setWeeklyReport] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [subscribeLoading, setSubscribeLoading] = useState(false);
+  const [testReportStatus, setTestReportStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
 
   // Load current subscription status from the users/{uid} Firestore document on open.
   useEffect(() => {
@@ -48,6 +49,28 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSave();
     if (e.key === 'Escape') handleCancel();
+  };
+
+  /**
+   * Dev-only helper that manually triggers the /api/send-weekly-report endpoint
+   * using the VITE_CRON_SECRET env var, so the weekly email can be tested
+   * locally without waiting for the GitHub Actions cron job.
+   */
+  const handleTestWeeklyReport = async () => {
+    setTestReportStatus('loading');
+    try {
+      const secret = import.meta.env.VITE_CRON_SECRET as string | undefined;
+      const res = await fetch('/api/send-weekly-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${secret ?? ''}`,
+        },
+      });
+      setTestReportStatus(res.ok ? 'ok' : 'error');
+    } catch {
+      setTestReportStatus('error');
+    }
   };
 
   /**
@@ -172,6 +195,19 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
       >
         Sign out
       </button>
+      {import.meta.env.DEV && (
+        <button
+          onClick={handleTestWeeklyReport}
+          disabled={testReportStatus === 'loading'}
+          className="w-full mt-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors duration-200 disabled:opacity-50"
+          style={{ borderColor: 'rgb(var(--border))', color: 'rgb(var(--text-secondary))' }}
+        >
+          {testReportStatus === 'loading' && 'Sending…'}
+          {testReportStatus === 'ok' && 'Report sent!'}
+          {testReportStatus === 'error' && 'Failed — check console'}
+          {testReportStatus === 'idle' && 'Test Weekly Report (dev)'}
+        </button>
+      )}
     </Modal>
   );
 }

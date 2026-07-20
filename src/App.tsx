@@ -511,9 +511,9 @@ export default function App() {
       </main>
       
       {/* Floating Usage Indicator */}
-      <div className="fixed bottom-16 right-4 rounded-lg shadow-lg px-2 py-1 border" style={{ backgroundColor: 'rgb(var(--bg-secondary))', color: 'rgb(var(--text-secondary))', borderColor: 'rgb(var(--border))' }}>
+      {/* <div className="fixed bottom-16 right-4 rounded-lg shadow-lg px-2 py-1 border" style={{ backgroundColor: 'rgb(var(--bg-secondary))', color: 'rgb(var(--text-secondary))', borderColor: 'rgb(var(--border))' }}>
         <UsageIndicator />
-      </div>
+      </div> */}
       
       <Footer />
 
