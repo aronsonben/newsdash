@@ -94,15 +94,17 @@ type ShortcutSection = { name: string; paragraph: string };
 /**
  * Builds the full HTML email string for a single subscriber.
  * Each shortcut gets a named section with a one-paragraph excerpt.
+ * Styled to match the NewsDash app's warm earthy light-theme palette.
  */
 function buildEmailHtml(sections: ShortcutSection[], unsubscribeUrl: string, appUrl: string): string {
   const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const logoUrl = `${appUrl}/newsdash_green.png`;
 
-  const sectionHtml = sections.map(({ name, paragraph }) => `
+  const sectionHtml = sections.map(({ name, paragraph }, i) => `
     <tr>
       <td style="padding:20px 36px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9ca3af;">${name}</p>
-        <p style="margin:0 0 20px;font-size:14px;line-height:1.75;color:#374151;border-bottom:1px solid #f3f4f6;padding-bottom:20px;">${paragraph}</p>
+        <p style="margin:0 0 6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#8B4513;">${name}</p>
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.75;color:#4A3528;${i < sections.length - 1 ? 'border-bottom:1px solid #D4C4B0;' : ''}padding-bottom:20px;">${paragraph}</p>
       </td>
     </tr>`).join('');
 
@@ -113,30 +115,39 @@ function buildEmailHtml(sections: ShortcutSection[], unsubscribeUrl: string, app
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>NewsDash Weekly Digest</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6;padding:32px 16px;">
+<body style="margin:0;padding:0;background-color:#F5F3F0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F5F3F0;padding:32px 16px;">
     <tr>
       <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #D4C4B0;">
           <tr>
-            <td style="background-color:#0f172a;padding:28px 36px;">
-              <p style="margin:0 0 4px;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">NewsDash</p>
-              <p style="margin:0;font-size:13px;color:#94a3b8;">Weekly Digest &mdash; ${date}</p>
+            <td style="background-color:#2D1B0F;padding:24px 36px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:14px;vertical-align:middle;">
+                    <img src="${logoUrl}" alt="NewsDash logo" height="40" style="display:block;border-radius:8px;height:40px;width:auto;">
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <p style="margin:0 0 2px;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;font-family:'Courier New',Courier,monospace;font-style:italic;">NewsDash</p>
+                    <p style="margin:0;font-size:13px;color:#A08060;">Weekly Digest &mdash; ${date}</p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>
             <td style="padding:28px 36px 8px;">
-              <p style="margin:0;font-size:14px;line-height:1.6;color:#6b7280;">Here&rsquo;s a summary of this week&rsquo;s stories across your five news categories.</p>
+              <p style="margin:0;font-size:14px;line-height:1.6;color:#6B4E3D;">Here&rsquo;s a summary of this week&rsquo;s stories across your five news categories.</p>
             </td>
           </tr>
           ${sectionHtml}
           <tr>
-            <td style="padding:24px 36px;border-top:1px solid #e5e7eb;margin-top:8px;">
-              <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;line-height:1.8;">
+            <td style="padding:24px 36px;border-top:1px solid #D4C4B0;margin-top:8px;">
+              <p style="margin:0;font-size:12px;color:#6B4E3D;text-align:center;line-height:1.8;">
                 You&rsquo;re receiving this because you subscribed to the NewsDash weekly digest.<br>
-                <a href="${unsubscribeUrl}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe</a>
+                <a href="${unsubscribeUrl}" style="color:#8B4513;text-decoration:underline;">Unsubscribe</a>
                 &nbsp;&middot;&nbsp;
-                <a href="${appUrl}" style="color:#9ca3af;text-decoration:underline;">Open NewsDash</a>
+                <a href="${appUrl}" style="color:#8B4513;text-decoration:underline;">Open NewsDash</a>
               </p>
             </td>
           </tr>
