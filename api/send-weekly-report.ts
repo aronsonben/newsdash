@@ -31,25 +31,50 @@ const SHORTCUTS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Pulls the first substantive paragraph from a markdown string.
- * Skips headings (#), list items (- *), blockquotes (>), and table rows (|).
- * Strips inline markdown formatting before returning.
+ * Extracts the first section from a markdown string — the section heading
+ * plus the first substantive paragraph beneath it.
+ * Falls back to the first non-heading paragraph if no heading is found,
+ * and to the raw first 500 characters if no paragraph exists at all.
  */
 function extractFirstParagraph(text: string): string {
+  const stripInline = (s: string) =>
+    s.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+     .replace(/[*_`]/g, '')
+     .replace(/\n/g, ' ')
+     .trim();
+
   const blocks = text.split(/\n\n+/);
+
+  // Find the first heading block and the first paragraph that follows it
+  for (let i = 0; i < blocks.length; i++) {
+    const trimmed = blocks[i].trim();
+    if (!trimmed.startsWith('#')) continue;
+
+    const heading = trimmed.replace(/^#+\s*/, '').trim();
+
+    // Find the first plain paragraph after this heading
+    for (let j = i + 1; j < blocks.length; j++) {
+      const next = blocks[j].trim();
+      if (!next) continue;
+      const firstChar = next[0];
+      if (firstChar === '#' || firstChar === '-' || firstChar === '*' || firstChar === '>' || firstChar === '|') continue;
+      return `${heading}: ${stripInline(next)}`;
+    }
+
+    // Heading found but no paragraph beneath it — return just the heading
+    return heading;
+  }
+
+  // Fallback: first non-heading paragraph
   for (const block of blocks) {
     const trimmed = block.trim();
     if (!trimmed) continue;
     const firstChar = trimmed[0];
     if (firstChar === '#' || firstChar === '-' || firstChar === '*' || firstChar === '>' || firstChar === '|') continue;
-    // Strip inline markdown: links → label, bold/italic/code markers
-    return trimmed
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/[*_`]/g, '')
-      .replace(/\n/g, ' ')
-      .trim();
+    return stripInline(trimmed);
   }
-  // Fallback: return the first 500 characters of raw text
+
+  // Last resort: raw text capped at 500 characters
   return text.replace(/\n/g, ' ').substring(0, 500).trim();
 }
 
