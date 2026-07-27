@@ -195,6 +195,19 @@ export default function App() {
   // ––– HANDLER & AUX FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   /**
+   * Resolves a stable username for automatic cloud saves in the app flow.
+   * Uses stored username first, then auth email prefix, then a generated anonymous fallback.
+   */
+  const getOrCreateAutoSaveUsername = (): string => {
+    const trimmed = storedUsername.trim();
+    if (trimmed) return trimmed;
+
+    const fallback = user?.email?.split('@')[0] || `anonymous${Math.floor(100 + Math.random() * 900)}`;
+    setStoredUsername(fallback);
+    return fallback;
+  };
+
+  /**
    * Background-fetches Firestore cache for all non-default shortcuts and hydrates
    * promptCache (localStorage) so switching between shortcuts is instant.
    * Does not touch any UI state — runs silently after the critical render.
@@ -275,7 +288,7 @@ export default function App() {
         const data = firestoreResult.data;
         // We found a cache object in the database, it's just not in this user's localStorage.
         // Hydrate localStorage so next visit is instant
-        setPromptCache([data, ...promptCache]);
+        setPromptCache(prev => [data, ...prev.filter(entry => entry.id !== data.id)]);
         setNewsData(data.data as GeminiGenerateResponse);
         setStreamingText(data.data.textWithCitations);
         setCurrentCacheObj(data);
@@ -297,22 +310,26 @@ export default function App() {
   };
 
   /**
-   * Saves the current response to Firestore, then patches the matching localStorage
-   * cache entry with savedBy so cloud attribution persists across page reloads.
+   * Saves a specific response payload to Firestore for a shortcut.
+   * This avoids stale React state by saving the fresh response object from the current run.
    */
-  const performCloudSave = async (username: string) => {
-    if (!newsData || !selectedShortcut) return;
+  const performCloudSave = async (shortcutId: string, response: GeminiGenerateResponse, username: string) => {
     setCloudSaveState('saving');
-    const success = await firestoreCache.save(selectedShortcut.id, newsData, username);
-    if (success) {
-      // Patch the localStorage entry so savedBy survives a refresh
-      setPromptCache(prev =>
-        prev.map(entry =>
-          entry.id === selectedShortcut.id ? { ...entry, savedBy: username } : entry
-        )
-      );
+    try {
+      const success = await firestoreCache.save(shortcutId, response, username);
+      if (success) {
+        setPromptCache(prev =>
+          prev.map(entry =>
+            entry.id === shortcutId ? { ...entry, savedBy: username } : entry
+          )
+        );
+      }
+      setCloudSaveState(success ? 'saved' : 'error');
+      return success;
+    } catch {
+      setCloudSaveState('error');
+      return false;
     }
-    setCloudSaveState(success ? 'saved' : 'error');
   };
 
   const handleSaveToCloud = async () => {
@@ -323,13 +340,18 @@ export default function App() {
       setIsUsernameModalOpen(true);
       return;
     }
-    performCloudSave(storedUsername);
+    await performCloudSave(selectedShortcut.id, newsData, storedUsername);
   };
 
-  const handleUsernameConfirm = (username: string) => {
+  /**
+   * Since the new paradigm (as of July 27 / v1.0.11) auto-saves the Gemini response to the db, 
+   * now this function will make a call to the onSend() function instead of performCloudSave()
+   */
+  const handleUsernameConfirm = async (username: string) => {
+    if (!newsData || !selectedShortcut) return;
     setStoredUsername(username);
     setIsUsernameModalOpen(false);
-    performCloudSave(username);
+    onSend(true, username);
   };
 
   /**
@@ -366,8 +388,16 @@ export default function App() {
   // ––– CORE FEATURE FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   /** Core feature function to send a request to the Gemini API, assuming all criteria are met */
-  async function onSend(forceRefresh = false) {
-    // if (!canSend) return;
+  async function onSend(forceRefresh = false, username = storedUsername) {
+    // Since we're now doing auto-save, first check or get a username for anonymous users.
+    // console.log("[App] The current username is: ", username);
+    if (!username) {
+      // console.log("[App] Whoops! No username, doing it. ");
+      const placeholder = `anonymous${Math.floor(100 + Math.random() * 900)}`;
+      setAnonPlaceholder(placeholder);
+      setIsUsernameModalOpen(true);
+      return;
+    }
 
     // Gather Prompt Info
     const promptId = selectedShortcut.id;         // no 'custom-prompt' option yet
@@ -378,13 +408,10 @@ export default function App() {
     setLoading(true);
     setError(null);
 
-    
     try {
-
-      // TODO: I don't know what this is doing... 
       // Check cache first (unless forcing refresh)
       if (!forceRefresh) {
-        console.log("onsend - !forceRefresh")
+        console.log("(in forceRefresh) checking for a recently cached response")
         const cached = promptCache.find((entry) => entry.id === promptId);
         if (cached) {
           // Use cached response
@@ -394,37 +421,15 @@ export default function App() {
         }
       }
 
-
-      // TESTING, DELTE LATER
-      // if (!import.meta.env.DEV) {
-      //   apiClient.generate({
-      //     prompt: promptText,
-      //     instructions: selectedShortcut.instructions,
-      //     temperature: 1.0,
-      //     modelName: 'gemini-2.5-flash'
-      //   });
-      // }
-
-      
-      // We do not have a cached response here, so making fresh call to LLM
-      // const streamResponse: GeminiStreamResponse = await generateStreamWithGemini({
-      //   prompt: promptText,
-      //   instructions: selectedShortcut.instructions,
-      //   temperature: 1.0,
-      //   modelName: 'gemini-2.5-flash'
-      // });
-
       const streamResponse: GeminiStreamResponse = await apiClient.generate({
         prompt: promptText,
         instructions: selectedShortcut.instructions,
         temperature: 1.0,
         modelName: 'gemini-2.5-flash'
       });
-
-      
-      let accumulatedText = '';
       
       // Process the stream chunks from the LLM response
+      let accumulatedText = '';
       for await (const chunk of streamResponse.stream) {
         if (!chunk.isComplete && chunk.text) {
           accumulatedText += chunk.text;
@@ -435,17 +440,23 @@ export default function App() {
       // Get the full response with citations when streaming completes
       const fullResponse = await streamResponse.getFullResponse();
 
-      // Always build a clean entry without savedBy — a local run is never cloud-attributed.
-      // Replacing only after a successful getFullResponse() means an error leaves the
-      // previous cache entry intact as a fallback.
-      setPromptCache((prev) => {
-        const freshEntry: CacheData = { id: promptId, data: fullResponse, updatedAt: Timestamp.now().toMillis() };
+      // Keep local cache fresh immediately after a successful run
+      setPromptCache(prev => {
+        const freshEntry: CacheData = {
+          id: promptId,
+          data: fullResponse,
+          updatedAt: Date.now()
+        };
         return [freshEntry, ...prev.filter((entry) => entry.id !== promptId)];
       });
       
       // Send final response to NewsDashboard
       handleStreamChunk(fullResponse.textWithCitations, true);
       handleResponse(fullResponse, false); // false indicates fresh from API
+
+      // Auto-save using the fresh response object (not stale state)
+      const autoUsername = getOrCreateAutoSaveUsername();
+      void performCloudSave(promptId, fullResponse, autoUsername);
     } catch (e: any) {
       setError(e?.message ?? 'Request failed');
       handleStreamChunk('Error generating response', true);

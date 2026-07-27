@@ -28,7 +28,7 @@ interface NewsDashboardProps {
   cloudSaveState: CloudSaveState;
   loading: boolean;
   isFetching: boolean;
-  onRunAgain: () => void; 
+  onRunAgain: (forceRefresh?: boolean) => void; 
   currentCacheObj: CacheData | null;
   currentCacheState: string;
   storedUsername?: string;
@@ -286,7 +286,7 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
             )}
           </span>
           <div className="flex items-center gap-2">
-            {cloudSaveState !== 'saved' && (
+            {/* {cloudSaveState !== 'saved' && (
               <span 
                 onMouseEnter={() => setIsSaveHovered(true)}
                 onMouseLeave={() => setIsSaveHovered(false)}
@@ -305,9 +305,9 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
               <span className="px-3 py-1 text-xs font-medium" style={{ color: 'rgb(var(--dashboard-accent))' }}>
                 ✓ Saved to Cloud
               </span>
-            )}
+            )} */}
             <button
-              onClick={onRunAgain}
+              onClick={() => onRunAgain(true)}
               disabled={loading}
               className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer enabled:hover:bg-[rgb(var(--button-primary))]/20 enabled:hover:text-[rgb(var(--text-primary))] enabled:hover:border-[rgb(var(--border))] disabled:opacity-50 disabled:cursor-not-allowed"
               style={isOld ? { backgroundColor: 'rgb(var(--accent))', borderColor: 'rgb(var(--accent))', color: 'rgb(var(--bg-primary))' } : {}}

@@ -70,8 +70,10 @@ export default function UsernamePromptModal({ isOpen, defaultValue, anonPlacehol
         {/* Body */}
         <div className="p-5 space-y-3">
           <p className="text-sm" style={{ color: 'rgb(var(--text-secondary))' }}>
-            This name will be attached to your saved response in the database.
-            You'll only be asked once.
+            Hey wait! Choose a username so your response can be saved to the database.
+          </p>
+          <p className="text-sm" style={{ color: 'rgb(var(--text-secondary))' }}>
+            Alternatively, you may sign in or create an account to save your username.
           </p>
           <input
             ref={inputRef}
