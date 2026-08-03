@@ -103,14 +103,6 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
       <h2 className="text-xl font-semibold mb-5">My Account</h2>
       <div className="space-y-4 mb-6">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'rgb(var(--text-muted))' }}>Email</p>
-          <p style={{ color: 'rgb(var(--text-primary))' }}>{user.email ?? '—'}</p>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'rgb(var(--text-muted))' }}>Member since</p>
-          <p style={{ color: 'rgb(var(--text-primary))' }}>{createdAt}</p>
-        </div>
-        <div>
           <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'rgb(var(--text-muted))' }}>Display name</p>
           {isEditing ? (
             <div className="flex items-center gap-2">
@@ -158,6 +150,15 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
             </div>
           )}
         </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'rgb(var(--text-muted))' }}>Email</p>
+          <p style={{ color: 'rgb(var(--text-primary))' }}>{user.email ?? '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'rgb(var(--text-muted))' }}>Member since</p>
+          <p style={{ color: 'rgb(var(--text-primary))' }}>{createdAt}</p>
+        </div>
+        
 
         {/* Weekly digest opt-in */}
         <div>

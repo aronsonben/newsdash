@@ -11,6 +11,7 @@ import SavedBlockModal from './components/SavedBlockModal';
 import SavedBlocksList from './components/SavedBlocksList';
 import SaveBlockWarningModal from './components/SaveBlockWarningModal';
 import UsernamePromptModal from './components/UsernamePromptModal';
+import SignInModal from './components/SignInModal';
 import { generateStreamWithGemini} from './lib/geminiClient';
 import { apiClient, firestoreCache } from './lib/apiClient';
 import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse, SavedBlock } from './types';
@@ -36,6 +37,7 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState<boolean>(false);                         // indicates if app is currently streaming text from Gemini response
   const [isFetching, setIsFetching] = useState<boolean>(false);                           // 'true' indicates the app is fetching data when user switches between shortcuts
   const [cloudSaveState, setCloudSaveState] = useState<CloudSaveState>('idle');           // indicates the state of the 'save to cloud' functionality
+  const [tempSignInEmail, setTempSignInEmail] = useLocalStorage<string>('temp_email', '');// Hold the temporary email value for magic link sign-ins
   // Cache 
   const [promptCache, setPromptCache] = useLocalStorage<CacheData[]>(NEWSDASH_CACHE_KEY, []);   // localStorage Cache Object [{ shortcut1_obj }, { shortcut2_obj }, {...}]
   const [cachedIds, setCachedIds] = useState<string[]>([]);                               // array of cachedIds from promptCache for easier parsing 
@@ -49,11 +51,12 @@ export default function App() {
   // Misc. state
   const [theme, setTheme] = useLocalStorage<string>('theme', 'dark');                     // css theme. defaults to dark.  
   const [storedUsername, setStoredUsername] = useLocalStorage<string>('newsdash_username', '');
+  const [isSignInModalOpen, setIsSignInModalOpen] = useState<boolean>(false);
   const [isUsernameModalOpen, setIsUsernameModalOpen] = useState<boolean>(false);
   const [anonPlaceholder, setAnonPlaceholder] = useState<string>('');
 
   // Auth
-  const { user, loading: authLoading, signIn, signOut } = useAuth();
+  const { user, loading: authLoading, signIn, signOut, anonymousSignIn, magicLinkSignIn, checkEmailLinkSignIn } = useAuth();
 
   // Migrate anonymous session blocks to Firestore on sign-in.
   // When the user was unauthenticated, blocks were saved to sessionStorage under
@@ -95,6 +98,98 @@ export default function App() {
   const setSessionPref = (key: string, value: boolean) => {
     try { sessionStorage.setItem(SESSION_PREFS_KEY, JSON.stringify({ ...getSessionPrefs(), [key]: value })); } catch {}
   };
+
+  // ––– EFFECTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+  // On first mount: load the default shortcut (critical path), then background-prefetch
+  // cache for all other shortcuts so switching between them is instant.
+  useEffect(() => {
+    const init = async () => {
+      await handleShortcutSelect(DEFAULT_SHORTCUT);
+      prefetchAllShortcuts();
+    };
+    // Sign in the user if this func call works, otherwise clear the tempEmail and warn the user sign-in did not work
+    checkEmailLinkSignIn(window.location.href, tempSignInEmail);
+    // if (!magicSignInSuccess) {
+    //   setTempSignInEmail('');
+    // }
+    init();
+  }, []);
+
+  // Apply theme to document
+  useEffect(() => {
+    const isDark = (theme === 'dark');
+    if (isDark) {
+      document.documentElement.setAttribute('data-theme', 'dark-earth');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    setTheme(isDark ? 'dark' : 'light');
+  }, [theme]);
+  
+  // Check cache status for all shortcuts
+  useEffect(() => {
+    setCachedIds(promptCache.map(entry => entry.id))
+
+    const inCache = promptCache.filter((pc) => (pc.id === selectedShortcut.id));
+    const inCacheObj = inCache.length > 0 ? inCache[0] : null
+    setCurrentCacheObj(inCacheObj);
+    const cacheState = getCacheState(inCache[0]);
+    setCurrentCacheState(cacheState);
+    // console.log("[App] Setting cacheObj status: ", inCacheObj?.id, " -- ", cacheState);
+  }, [promptCache]);
+
+  // Clear stale content as soon as a new request starts so the skeleton
+  // is never blocked by old streamingText / newsData values.
+  useEffect(() => {
+    if (loading) {
+      setStreamingText('');
+      setNewsData(null);
+    }
+  }, [loading]);
+
+  // ––– AUTH HANDLERS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+  /** Assign a random anonymous username if no email provided, and call useAuth function 
+   * @param mode - defines which sign in method is being used
+   * @param email - the email input by the user in the case of magic link sign in
+  */
+  const handleSignIn = (mode: string, email?: string) => {
+    try {
+      // Sign in with Google
+      if (mode === "google") {
+        signIn();
+      }
+      // First generate an anonymous username, then use anonymous sign in
+      else if (mode === "anonymous") {
+        getOrCreateAutoSaveUsername();
+        anonymousSignIn();
+      }
+      // Check that email is valid. If not, set error msg & return. Otherwise, send magic link
+      else if (mode === "magic") {
+        if (!email) throw new Error("Invalid email");
+        // save email here: 
+        setTempSignInEmail(email);
+        magicLinkSignIn(email);
+        setStoredUsername(user ? user.displayName ?? '' : '');
+      }
+    } catch (error) {
+      console.log("ERROR: Error signing in to app. ", error);
+    }
+    
+    setIsSignInModalOpen(false);
+    return;
+  }
+
+  /** Clear localStorage state and call useAuth function */
+  const handleSignOut = () => {
+    setStoredUsername('');
+    signOut();
+    return;
+  }
+
+  // ––– HANDLER & AUX FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
 
   /**
    * Saves a block of text to localStorage for the user
@@ -146,53 +241,6 @@ export default function App() {
     setPendingBlock(null);
     setEditingBlock(null);
   };
-
-  // ––– EFFECTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-
-  // On first mount: load the default shortcut (critical path), then background-prefetch
-  // cache for all other shortcuts so switching between them is instant.
-  useEffect(() => {
-    const init = async () => {
-      await handleShortcutSelect(DEFAULT_SHORTCUT);
-      prefetchAllShortcuts();
-    };
-    init();
-  }, []);
-
-  // Apply theme to document
-  useEffect(() => {
-    const isDark = (theme === 'dark');
-    if (isDark) {
-      document.documentElement.setAttribute('data-theme', 'dark-earth');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-    }
-    setTheme(isDark ? 'dark' : 'light');
-  }, [theme]);
-  
-  // Check cache status for all shortcuts
-  useEffect(() => {
-    setCachedIds(promptCache.map(entry => entry.id))
-
-    const inCache = promptCache.filter((pc) => (pc.id === selectedShortcut.id));
-    const inCacheObj = inCache.length > 0 ? inCache[0] : null
-    setCurrentCacheObj(inCacheObj);
-    const cacheState = getCacheState(inCache[0]);
-    setCurrentCacheState(cacheState);
-    console.log("[App] Setting cacheObj status: ", inCacheObj?.id, " -- ", cacheState);
-  }, [promptCache]);
-
-
-  // Clear stale content as soon as a new request starts so the skeleton
-  // is never blocked by old streamingText / newsData values.
-  useEffect(() => {
-    if (loading) {
-      setStreamingText('');
-      setNewsData(null);
-    }
-  }, [loading]);
-
-  // ––– HANDLER & AUX FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   /**
    * Resolves a stable username for automatic cloud saves in the app flow.
@@ -470,7 +518,17 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-screen font-grotesk bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-primary))]">
-      <Header isDark={(theme === 'dark')} toggleTheme={() => setTheme((theme === 'dark') ? 'light' : 'dark')} apiStatus={geminiConfigured} user={user} authLoading={authLoading} onSignIn={signIn} onSignOut={signOut} />
+      <Header 
+        isDark={(theme === 'dark')} 
+        toggleTheme={() => setTheme((theme === 'dark') ? 'light' : 'dark')} 
+        apiStatus={geminiConfigured} 
+        user={user} 
+        displayName={storedUsername}
+        authLoading={authLoading} 
+        openSignInModal={() => setIsSignInModalOpen(true)}
+        onSignIn={handleSignIn} 
+        onSignOut={handleSignOut} 
+      />
       <MobileShortcutTray onSelect={handleShortcutSelect} selectedId={selectedShortcut?.id} />
       <main className="flex-1 flex min-h-0">
         <Sidebar 
@@ -554,6 +612,13 @@ export default function App() {
         anonPlaceholder={anonPlaceholder}
         onConfirm={handleUsernameConfirm}
         onClose={() => setIsUsernameModalOpen(false)}
+      />
+
+      <SignInModal 
+        isOpen={isSignInModalOpen}
+        handleSignIn={handleSignIn}
+        handleSignOut={handleSignOut}
+        onClose={() => setIsSignInModalOpen(false)}
       />
     </div>
   );
