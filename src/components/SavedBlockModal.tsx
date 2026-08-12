@@ -6,7 +6,7 @@ import { marked } from 'marked';
 import { SavedBlock } from 'src/types';
 
 interface SavedBlockModalProps {
-  block: Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'>;
+  block: Omit<SavedBlock, 'createdAt' | 'updatedAt'>;
   onConfirm: (title: string, text: string) => void;
   onDiscard: () => void;
   limitReached?: boolean;

@@ -6,7 +6,6 @@ import { useLocalStorage } from './useLocalStorage';
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true); // true while Firebase resolves the session
-  const [storedUsername, setStoredUsername] = useLocalStorage<string>('newsdash_username', '');
 
   useEffect(() => {
     // onAuthStateChanged fires once immediately with the current user (or null),
@@ -61,32 +60,28 @@ export function useAuth() {
   // ––– HELPER METHODS –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   /** Function to handle the sign in with magic link flow. Returns true if successfully logged in */
-  const checkEmailLinkSignIn = (url: string, email: string): boolean => {
-    if (isSignInWithEmailLink(auth, url)) {
-      console.log("[useAuth] Confirmed we found a sign in with email link");
-      
-      if (!email) {
-        console.error("Invalid sign in with link. Try again.");
-        return false;
-      }
-      
-      // Now use the firebase function to sign in with the email link
-      signInWithEmailLink(auth, email, window.location.href)
-        .then((result) => {
-          // Technically should remove 'temp_email' from localStorage here but for now will handle on signOut
-          console.log("[useAuth] Successfully signed in with email link! ", result );
-          return true;
-        })
-        .catch((error) => {
-          console.error("Error signing in with email link: ", error);
-          return false;
-        });
-      
-    } else {
+  const checkEmailLinkSignIn = async (url: string, email: string): Promise<boolean> => {
+    if (!isSignInWithEmailLink(auth, url)) {
       console.log("[useAuth] is NOT a email link sign in");
       return false;
     }
-    return false;
+
+    console.log("[useAuth] Confirmed we found a sign in with email link");
+
+    if (!email) {
+      console.error("Invalid sign in with link. Try again.");
+      return false;
+    }
+
+    try {
+      const result = await signInWithEmailLink(auth, email, window.location.href);
+      // Technically should remove 'temp_email' from localStorage here but for now will handle on signOut
+      console.log("[useAuth] Successfully signed in with email link! ", result);
+      return true;
+    } catch (error) {
+      console.error("Error signing in with email link: ", error);
+      return false;
+    }
   }
 
   return { user, loading, signIn, signOut: signOut_, anonymousSignIn, magicLinkSignIn, checkEmailLinkSignIn };

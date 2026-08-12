@@ -10,7 +10,7 @@ const NewsDashLogo = () => (
       alt="NewsDash logo" 
       className="h-10 w-auto rounded-lg"
     />
-    <div className="flex items-end gap-3">
+    <div className="hidden sm:flex items-end gap-3">
       <div 
         className="font-light font-mono text-3xl italic"
         style={{ color: 'rgb(var(--text-primary))' }}
@@ -45,7 +45,7 @@ export default function Header({ isDark, toggleTheme, apiStatus, user, displayNa
   return (
     <>
     <header 
-      className="sticky top-0 z-10 backdrop-blur-md border-b px-4 py-3 flex items-center justify-between"
+      className=" top-0 z-10 backdrop-blur-md border-b px-4 py-3 flex items-center justify-between"
       style={{
         backgroundColor: 'rgba(var(--bg-primary), 0.9)',
         borderColor: 'rgb(var(--border))',
@@ -53,7 +53,7 @@ export default function Header({ isDark, toggleTheme, apiStatus, user, displayNa
       }}
     >
       <NewsDashLogo />
-      <div className="gap-3 items-center sm:flex hidden">
+      <div className="gap-3 items-center flex">
         <button
           onClick={toggleTheme}
           className="px-3 py-2 rounded-lg text-white border-0 transition-colors duration-200 font-medium"

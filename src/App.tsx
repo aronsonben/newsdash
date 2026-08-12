@@ -22,11 +22,22 @@ import { useAuth } from './services/useAuth';
 import { Timestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from './lib/firestore';
 import { getCacheState } from './lib/utils';
+import { User } from 'firebase/auth';
 
 
 
 export default function App() {
   // ––– STATE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+  // Auth
+  const { 
+    user, 
+    loading: authLoading, 
+    signIn, 
+    signOut, 
+    anonymousSignIn, 
+    magicLinkSignIn, 
+    checkEmailLinkSignIn 
+  } = useAuth();
   // Core Data
   const [selectedShortcut, setSelectedShortcut] = useState<Shortcut>(DEFAULT_SHORTCUT);   // the selected shortcut object
   const [newsData, setNewsData] = useState<GeminiGenerateResponse | null>(null);          // the gemini response data, if exists
@@ -43,52 +54,55 @@ export default function App() {
   const [cachedIds, setCachedIds] = useState<string[]>([]);                               // array of cachedIds from promptCache for easier parsing 
   const [currentCacheObj, setCurrentCacheObj] = useState<CacheData | null>(null);         // if we find a cached obj in promptCache, set this as the obj of truth
   const [currentCacheState, setCurrentCacheState] = useState<string>('none');
-  
-  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);              // TODO: OHH - I DONT NEED THIS, I SHOULD JUST USE promptCache FOR EACH OBJ. the time the current cache obj
   // LLM State
   const [geminiConfigured, setGeminiConfigured] = useState<boolean>(false);
-  
   // Misc. state
   const [theme, setTheme] = useLocalStorage<string>('theme', 'dark');                     // css theme. defaults to dark.  
   const [storedUsername, setStoredUsername] = useLocalStorage<string>('newsdash_username', '');
   const [isSignInModalOpen, setIsSignInModalOpen] = useState<boolean>(false);
   const [isUsernameModalOpen, setIsUsernameModalOpen] = useState<boolean>(false);
   const [anonPlaceholder, setAnonPlaceholder] = useState<string>('');
+  // Saved blocks
+  const { 
+    blocks: savedBlocks, 
+    addBlock, 
+    updateBlock, 
+    removeBlock, 
+    clearBlocks,
+    limitReached
+  } = useSavedBlocks(user?.uid ?? null);
+  // -- pendingBlock: new block from a header click (not yet saved)
+  const [pendingBlock, setPendingBlock] = useState<Omit<SavedBlock, 'createdAt' | 'updatedAt'> | null>(null);
+  // -- editingBlock: existing saved block being edited
+  const [editingBlock, setEditingBlock] = useState<SavedBlock | null>(null);
+  // -- warning modal for unauthenticated users attempting to save a block
+  const [showSaveBlockWarning, setShowSaveBlockWarning] = useState<boolean>(false);
+  const [pendingBlockForWarning, setPendingBlockForWarning] = useState<Omit<SavedBlock, 'createdAt' | 'updatedAt'> | null>(null);
 
-  // Auth
-  const { user, loading: authLoading, signIn, signOut, anonymousSignIn, magicLinkSignIn, checkEmailLinkSignIn } = useAuth();
 
   // Migrate anonymous session blocks to Firestore on sign-in.
   // When the user was unauthenticated, blocks were saved to sessionStorage under
   // 'newsdash_saved_blocks'. Once they sign in, write each block to their
   // Firestore collection and clear the sessionStorage entry.
-  useEffect(() => {
-    if (!user) return;
-    const raw = sessionStorage.getItem('newsdash_saved_blocks');
-    if (!raw) return;
-    let anonBlocks: SavedBlock[];
-    try {
-      anonBlocks = JSON.parse(raw) as SavedBlock[];
-    } catch {
-      sessionStorage.removeItem('newsdash_saved_blocks');
-      return;
-    }
-    if (anonBlocks.length === 0) return;
-    anonBlocks.forEach(block => {
-      setDoc(doc(db, 'users', user.uid, 'saved_blocks', block.id), block).catch(() => {});
-    });
-    sessionStorage.removeItem('newsdash_saved_blocks');
-  }, [user?.uid]);
-
-  // Saved blocks
-  const { blocks: savedBlocks, addBlock, updateBlock, removeBlock, limitReached } = useSavedBlocks(user?.uid ?? null);
-  // pendingBlock: new block from a header click (not yet saved)
-  const [pendingBlock, setPendingBlock] = useState<Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'> | null>(null);
-  // editingBlock: existing saved block being edited
-  const [editingBlock, setEditingBlock] = useState<SavedBlock | null>(null);
-  // warning modal for unauthenticated users attempting to save a block
-  const [showSaveBlockWarning, setShowSaveBlockWarning] = useState<boolean>(false);
-  const [pendingBlockForWarning, setPendingBlockForWarning] = useState<Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'> | null>(null);
+  // useEffect(() => {
+  //   console.log("[App][Effect-SessioBlock] Migrating anonymous session blocks???", );
+  //   console.log("[App] user: ", user);
+  //   if (!user) return;
+  //   const raw = sessionStorage.getItem('newsdash_saved_blocks');
+  //   if (!raw) return;
+  //   let anonBlocks: SavedBlock[];
+  //   try {
+  //     anonBlocks = JSON.parse(raw) as SavedBlock[];
+  //   } catch {
+  //     sessionStorage.removeItem('newsdash_saved_blocks');
+  //     return;
+  //   }
+  //   if (anonBlocks.length === 0) return;
+  //   anonBlocks.forEach(block => {
+  //     setDoc(doc(db, 'users', user.uid, 'saved_blocks', block.id), block).catch(() => {});
+  //   });
+  //   sessionStorage.removeItem('newsdash_saved_blocks');
+  // }, [user?.uid]);
 
   // Session-scoped user preferences (sessionStorage so they reset on each new browser session)
   const SESSION_PREFS_KEY = 'newsdash_user_prefs';
@@ -108,13 +122,15 @@ export default function App() {
       await handleShortcutSelect(DEFAULT_SHORTCUT);
       prefetchAllShortcuts();
     };
-    // Sign in the user if this func call works, otherwise clear the tempEmail and warn the user sign-in did not work
-    checkEmailLinkSignIn(window.location.href, tempSignInEmail);
-    // if (!magicSignInSuccess) {
-    //   setTempSignInEmail('');
-    // }
     init();
   }, []);
+
+  // Check for a magic link sign-in once Firebase has resolved the session.
+  // Must run after authLoading is false so signInWithEmailLink has a valid auth state to complete against.
+  useEffect(() => {
+    if (authLoading) return;
+    checkEmailLinkSignIn(window.location.href, tempSignInEmail);
+  }, [authLoading]);
 
   // Apply theme to document
   useEffect(() => {
@@ -177,13 +193,15 @@ export default function App() {
       console.log("ERROR: Error signing in to app. ", error);
     }
     
-    setIsSignInModalOpen(false);
+    // Only close the modal for non-magic-link flows; magic link shows a confirmation screen
+    if (mode !== "magic") setIsSignInModalOpen(false);
     return;
   }
 
   /** Clear localStorage state and call useAuth function */
   const handleSignOut = () => {
     setStoredUsername('');
+    clearBlocks();
     signOut();
     return;
   }
@@ -194,7 +212,7 @@ export default function App() {
   /**
    * Saves a block of text to localStorage for the user
    */
-  const handleSaveBlock = (block: Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleSaveBlock = (block: Omit<SavedBlock, 'createdAt' | 'updatedAt'>) => {
     if (!user && !getSessionPrefs().hasSeenSaveBlockWarning) {
       setPendingBlockForWarning(block);
       setShowSaveBlockWarning(true);
@@ -209,7 +227,7 @@ export default function App() {
   const handleSaveBlockWarningSignIn = () => {
     setSessionPref('hasSeenSaveBlockWarning', true);
     setShowSaveBlockWarning(false);
-    signIn();
+    setIsSignInModalOpen(true);
     // The block will be available again after sign-in via the normal flow
     setPendingBlockForWarning(null);
   };
@@ -223,6 +241,7 @@ export default function App() {
     }
   };
 
+  /** Save a new block to the database */
   const handleConfirmNew = (title: string, text: string) => {
     if (!pendingBlock) return;
     addBlock({ ...pendingBlock, title, text });
@@ -237,9 +256,15 @@ export default function App() {
 
   const handleEditBlock = (block: SavedBlock) => setEditingBlock(block);
 
-  const handleDiscardModal = () => {
-    setPendingBlock(null);
+  const handleRemoveBlock = () => {
+    if (!editingBlock) return; // todo: check this
+    removeBlock(editingBlock.id);
     setEditingBlock(null);
+  }
+
+  const handleDiscardModal = () => {
+    handleRemoveBlock();
+    setPendingBlock(null);
   };
 
   /**
@@ -537,7 +562,7 @@ export default function App() {
           onSelect={handleShortcutSelect}
           savedBlocks={savedBlocks}
           onEditBlock={handleEditBlock}
-          onDeleteBlock={removeBlock}
+          onDeleteBlock={handleRemoveBlock}
           limitReached={limitReached}
         />
         <div className="flex-1 p-4 max-w-full md:max-w-240 mx-auto">
@@ -571,7 +596,7 @@ export default function App() {
             <SavedBlocksList
               blocks={savedBlocks}
               onEdit={handleEditBlock}
-              onDelete={removeBlock}
+              onDelete={handleRemoveBlock}
               limitReached={limitReached}
             />
           </div>

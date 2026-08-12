@@ -1,8 +1,11 @@
 import { Shortcut } from 'src/types';
 import shortcuts from '../../shortcuts.json';
 
+const BASE_SHORTCUTS: Shortcut[] = shortcuts;
+const CLIMATE_SHORTCUTS: Shortcut[] = shortcuts.filter((s) => (s.id !== "ai-innovation-daily-review"));
+
 export default function MobileShortcutTray({ onSelect, selectedId }: { onSelect: (s: Shortcut) => void; selectedId?: string }) {
-  const items = (shortcuts as Shortcut[]).filter((s) => !!s?.name && !!s?.prompt);
+  const items = (CLIMATE_SHORTCUTS as Shortcut[]).filter((s) => !!s?.name && !!s?.prompt);
 
   return (
     <section className="md:hidden border-b theme-border theme-sidebar-bg px-4 py-3">

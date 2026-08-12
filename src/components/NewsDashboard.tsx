@@ -32,7 +32,7 @@ interface NewsDashboardProps {
   currentCacheObj: CacheData | null;
   currentCacheState: string;
   storedUsername?: string;
-  onSaveBlock?: (block: Omit<SavedBlock, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onSaveBlock?: (block: Omit<SavedBlock, 'createdAt' | 'updatedAt'>) => void;
 }
 
 export default function NewsDashboard({ data, isStreaming, streamingText, onSaveToCloud, cloudSaveState = 'idle', loading, isFetching, onRunAgain, currentCacheObj, currentCacheState, storedUsername, onSaveBlock }: NewsDashboardProps) {
@@ -69,9 +69,11 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
 
   // savedBy is the durable discriminator: present = originated from Firestore, absent = locally run
   const hasSavedBy = !!currentCacheObj?.savedBy;
-  const displayRunner = !hasSavedBy
+  const savedBy = hasSavedBy ? currentCacheObj?.savedBy : '';
+  const displayNameRunner = !hasSavedBy
     ? 'anonymous'
-    : (storedUsername && storedUsername === currentCacheObj?.savedBy ? 'you' : (currentCacheObj?.savedBy || 'anonymous'));
+    : (storedUsername && storedUsername === savedBy ? 'you' : (savedBy || 'anonymous'));
+
   const STALE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // prompt to re-run after 3 days
   const isOld = !!currentCacheObj && (Date.now() - currentCacheObj.updatedAt) > STALE_THRESHOLD_MS;
 
@@ -276,8 +278,8 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
                     {formatRelativeTime(currentCacheObj.updatedAt)}
                   </span>
                   {' by '}
-                  <strong style={{ color: 'rgb(var(--text-secondary))' }}>
-                    {displayRunner}
+                  <strong style={{ color: 'rgb(var(--text-secondary))' }} title={(displayNameRunner === 'you') ? storedUsername : savedBy}>
+                    {displayNameRunner}
                   </strong>
                 </span>
               </>

@@ -24,6 +24,7 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
   const [profileLoading, setProfileLoading] = useState(true);
   const [subscribeLoading, setSubscribeLoading] = useState(false);
   const [testReportStatus, setTestReportStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [showDigestTooltip, setShowDigestTooltip] = useState(false);
 
   // Load current subscription status from the users/{uid} Firestore document on open.
   useEffect(() => {
@@ -162,7 +163,29 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
 
         {/* Weekly digest opt-in */}
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: 'rgb(var(--text-muted))' }}>Weekly Digest</p>
+          <div className="flex items-center justify-start gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: 'rgb(var(--text-muted))' }}>Weekly Digest</p>
+            <div
+              id="weekly-digest-help-tip"
+              className="relative inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-xs cursor-default mb-2 bg-[rgb(var(--text-muted))]"
+              onMouseEnter={() => setShowDigestTooltip(true)}
+              onMouseLeave={() => setShowDigestTooltip(false)}
+            >
+              ?
+              {showDigestTooltip && (
+                <div
+                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg px-3 py-2 text-xs shadow-lg z-50 pointer-events-none"
+                  style={{
+                    backgroundColor: 'rgb(var(--bg-secondary))',
+                    color: 'rgb(var(--text-secondary))',
+                    border: '1px solid rgb(var(--border))',
+                  }}
+                >
+                  The Weekly Digest is a once-a-week email containing the latest in the climate news shortcuts found on NewsDash. It fires once a week at 9am EST.
+                </div>
+              )}
+            </div>
+          </div>
           {profileLoading ? (
             <p className="text-sm" style={{ color: 'rgb(var(--text-muted))' }}>Loading…</p>
           ) : (

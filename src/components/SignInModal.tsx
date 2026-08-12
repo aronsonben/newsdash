@@ -10,6 +10,7 @@ interface SignInModalProps {
 export default function SignInModal({ isOpen, handleSignIn, handleSignOut, onClose }: SignInModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [magicLinkOpen, setMagicLinkOpen] = useState<boolean>(false);
+  const [magicLinkSent, setMagicLinkSent] = useState<boolean>(false);
   const [emailValue, setEmailValue] = useState<string>('');
   const [error, setError] = useState<string>('');
 
@@ -33,14 +34,26 @@ export default function SignInModal({ isOpen, handleSignIn, handleSignOut, onClo
     }
   }
 
-  /** Locally handle magic link sign in to validate email address */
+  /** Locally handle magic link sign in to validate email address, then show confirmation */
   const handleMagicLinkSignIn = () => {
+    console.log("[SignInModal] handling magic link sign in button", );
     const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!emailValue || emailValue.trim() === '' || !isValidEmail(emailValue)) {
       setError("Whoops! You input an invalid email, or this sign-in method is not working right now. Please try again.");
       return;
     } 
     handleSignIn("magic", emailValue);
+    setEmailValue('');
+    setError('');
+    setMagicLinkSent(true);
+    setMagicLinkOpen(false);
+  }
+
+  /** Resets all sign-in state and closes the modal */
+  const handleClose = () => {
+    onClose();
+    setMagicLinkOpen(false);
+    setMagicLinkSent(false);
     setEmailValue('');
     setError('');
   }
@@ -61,10 +74,10 @@ export default function SignInModal({ isOpen, handleSignIn, handleSignOut, onClo
           style={{ borderColor: 'rgb(var(--border))' }}
         >
           <span className="text-xs font-semibold font-grotesk uppercase tracking-wide" style={{ color: 'rgb(var(--text-muted))' }}>
-            Sign In {magicLinkOpen && 'with Magic Link'}
+            {magicLinkSent ? 'Check Your Email' : magicLinkOpen ? 'Sign In with Magic Link' : 'Sign In'}
           </span>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-lg leading-none opacity-50 hover:opacity-100 transition-opacity"
             aria-label="Close"
           >
@@ -75,8 +88,10 @@ export default function SignInModal({ isOpen, handleSignIn, handleSignOut, onClo
         {/* Body */}
         <div className="p-5 space-y-3">
           <p className="text-sm" style={{ color: 'rgb(var(--text-secondary))' }}>
-            {!magicLinkOpen ? 
-              "Sign in with Google, your email, or anonymously (you can link your account later if you wish)."
+            {magicLinkSent
+              ? "A sign-in link is on its way — check your inbox and don't forget to check your spam folder!"
+              : !magicLinkOpen
+              ? "Sign in with Google, your email, or anonymously (you can link your account later if you wish)."
               : "Enter your email and a link to sign in will be sent."}
           </p>
           {magicLinkOpen && (
@@ -111,7 +126,16 @@ export default function SignInModal({ isOpen, handleSignIn, handleSignOut, onClo
           className="flex flex-col justify-end gap-2 px-5 py-3 border-t"
           style={{ borderColor: 'rgb(var(--border))' }}
         >
-          {!magicLinkOpen ? (
+          {magicLinkSent ? (
+            <div className="flex flex-col justify-end gap-2 px-5 py-3">
+              <button
+                onClick={handleClose}
+                className="px-3 py-2 rounded-lg text-[rgb(var(--text-secondary))] dark:text-[rgb(var(--text-secondary))] text-sm font-normal bg-[rgb(var(--bg-primary))] border-[0.5px] border-white/80 dark:border-[rgb(var(--border-primary))] transition-colors duration-200 hover:bg-[rgb(var(--bg-secondary))] hover:cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          ) : !magicLinkOpen ? (
             <div className="flex flex-col justify-end gap-2 px-5 py-3">
               <button
                 onClick={() => handleSignIn("google")}
@@ -143,7 +167,7 @@ export default function SignInModal({ isOpen, handleSignIn, handleSignOut, onClo
               </button>
               <button
                 type="button"
-                onClick={() => { onClose(); setMagicLinkOpen(false); setEmailValue(''); setError(''); }}
+                onClick={handleClose}
                 className="px-3 py-2 rounded-lg text-[rgb(var(--text-secondary))] dark:text-[rgb(var(--text-secondary))] text-sm font-normal bg-[rgb(var(--bg-primary))] border-[0.5px] border-white/80 dark:border-[rgb(var(--border-primary))] transition-colors duration-200 hover:bg-[rgb(var(--bg-secondary))] hover:cursor-pointer"
               >
                 Cancel

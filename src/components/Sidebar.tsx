@@ -4,6 +4,7 @@ import shortcuts from '../../shortcuts.json';
 import SavedBlocksList from './SavedBlocksList';
 
 const BASE_SHORTCUTS: Shortcut[] = shortcuts;
+const CLIMATE_SHORTCUTS: Shortcut[] = shortcuts.filter((s) => (s.id !== "ai-innovation-daily-review"));
 
 interface SidebarProps { 
   selectedId: string;
@@ -22,7 +23,7 @@ export function Sidebar({ selectedId, cachedIds, onSelect, savedBlocks, onEditBl
     <aside className="hidden md:flex flex-col gap-3 border-r theme-border theme-sidebar-bg px-4 py-5 shrink-0 w-20 lg:w-72">
       <div className="hidden lg:block font-semibold mb-1 theme-text-primary font-grotesk text-lg">Shortcuts</div>
       <div className="grid gap-2">
-        {BASE_SHORTCUTS.map((item) => {
+        {CLIMATE_SHORTCUTS.map((item) => {
           const iconSrc = item.icon ? (item.icon.startsWith('/') ? item.icon : `/${item.icon}`) : undefined;
           const initials = item.name
             .split(' ')
