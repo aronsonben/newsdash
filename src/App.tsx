@@ -15,7 +15,7 @@ import SignInModal from './components/SignInModal';
 import { generateStreamWithGemini} from './lib/geminiClient';
 import { apiClient, firestoreCache } from './lib/apiClient';
 import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse, SavedBlock } from './types';
-import { BASE_SHORTCUTS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
+import { BASE_SHORTCUTS, CLIMATE_SHORTCUTS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
 import { useLocalStorage } from './services/useLocalStorage';
 import { useSavedBlocks } from './services/useSavedBlocks';
 import { useAuth } from './services/useAuth';
@@ -286,7 +286,7 @@ export default function App() {
    * Does not touch any UI state — runs silently after the critical render.
    */
   const prefetchAllShortcuts = async () => {
-    const otherShortcuts = BASE_SHORTCUTS.filter(s => s.id !== DEFAULT_SHORTCUT.id);
+    const otherShortcuts = CLIMATE_SHORTCUTS.filter(s => s.id !== DEFAULT_SHORTCUT.id);
     await Promise.allSettled(
       otherShortcuts.map(async (shortcut) => {
         // Skip if already in localStorage — no DB call needed

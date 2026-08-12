@@ -5,6 +5,7 @@ export const FRESH_TTL_MS = 24 * 60 * 60 * 1000;      // < 24 h  → return imme
 export const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 export const BASE_SHORTCUTS: Shortcut[] = shortcuts;
+export const CLIMATE_SHORTCUTS: Shortcut[] = shortcuts.filter((s) => (s.id !== "ai-innovation-daily-review"));
 
 export const NEWSDASH_CACHE_KEY = "newsdash_prompt_cache";
 
