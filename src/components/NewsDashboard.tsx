@@ -80,7 +80,8 @@ export default function NewsDashboard({
     if (!onSaveBlock) return;
     const segment = segments.find(s => s.heading === headingText);
     if (segment) {
-      onSaveBlock({ title: segment.heading, text: segment.content, citations: segment.citations });
+      let segId = segment.heading + Date.now();
+      onSaveBlock({ id: segId, title: segment.heading, text: segment.content, citations: segment.citations });
     }
   };
 
