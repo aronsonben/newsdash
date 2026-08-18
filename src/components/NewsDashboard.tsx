@@ -31,11 +31,30 @@ interface NewsDashboardProps {
   onRunAgain: (forceRefresh?: boolean) => void; 
   currentCacheObj: CacheData | null;
   currentCacheState: string;
+  highlightedText: string;
+  setHighlightedText: (text: string | null, selection: Selection | null, citations?: GroundingChunk[]) => void;
+  highlightedCitations: GroundingChunk[];
   storedUsername?: string;
   onSaveBlock?: (block: Omit<SavedBlock, 'createdAt' | 'updatedAt'>) => void;
 }
 
-export default function NewsDashboard({ data, isStreaming, streamingText, onSaveToCloud, cloudSaveState = 'idle', loading, isFetching, onRunAgain, currentCacheObj, currentCacheState, storedUsername, onSaveBlock }: NewsDashboardProps) {
+export default function NewsDashboard({ 
+  data, 
+  isStreaming, 
+  streamingText, 
+  onSaveToCloud, 
+  cloudSaveState = 'idle', 
+  loading, 
+  isFetching, 
+  onRunAgain, 
+  currentCacheObj, 
+  currentCacheState, 
+  highlightedText,
+  setHighlightedText,
+  highlightedCitations,
+  storedUsername, 
+  onSaveBlock 
+}: NewsDashboardProps) {
   // ––– STATE ––––––––––––
   // Citation Popup State
   const dialogRef = React.useRef<HTMLDialogElement>(null);
@@ -134,6 +153,30 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
       };
     });
   }, [data]);
+
+
+  // ––– CUSTOM HIGHLIGHT TOOLTIP HANDLER ––––––––––––––––––––
+  /**
+   * Custom text highlight handler does two things:
+   * 1. Sets the highlighted text to global state
+   * 2. Displays a custom highlight tooltip UI with actions
+   */
+  const handleCustomHighlight = () => {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const text = selection.toString();
+    if (!text) return;
+
+    // matches digits not preceded by a letter/digit, handles "1,2,3" and "1These" patterns
+    const citationNums = [...text.matchAll(/(?<![a-zA-Z\d])(\d{1,2})(?!\d)/g)]
+      .map(m => parseInt(m[1], 10));
+    const citations: GroundingChunk[] = citationNums
+      .filter(num => num >= 1 && num <= (data?.groundingChunks?.length ?? 0))
+      .map(num => data!.groundingChunks![num - 1]);
+
+    setHighlightedText(text, selection, citations.length > 0 ? citations : undefined);
+  }
 
   // ––– MISC. HANDLER ––––––––––––––––––––
   // Custom ReactMarkdown components for better styling
@@ -288,26 +331,6 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
             )}
           </span>
           <div className="flex items-center gap-2">
-            {/* {cloudSaveState !== 'saved' && (
-              <span 
-                onMouseEnter={() => setIsSaveHovered(true)}
-                onMouseLeave={() => setIsSaveHovered(false)}
-              >
-                <button
-                  onClick={onSaveToCloud}
-                  disabled={hasSavedBy || cloudSaveState === 'saving'}
-                  className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer enabled:hover:bg-[rgb(var(--button-primary))] enabled:hover:text-[rgb(var(--text-primary))] enabled:hover:border-[rgb(var(--border))] disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={hasSavedBy ? 'Already saved to cloud' : cloudSaveState === 'error' ? 'Save failed — click to retry' : 'Save this response to the cloud database'}
-                >
-                  {cloudSaveState === 'saving' ? 'Saving…' : cloudSaveState === 'error' ? 'Retry Save ↑' : '↑ Save to Cloud'}
-                </button>
-              </span>
-            )}
-            {cloudSaveState === 'saved' && (
-              <span className="px-3 py-1 text-xs font-medium" style={{ color: 'rgb(var(--dashboard-accent))' }}>
-                ✓ Saved to Cloud
-              </span>
-            )} */}
             <button
               onClick={() => onRunAgain(true)}
               disabled={loading}
@@ -394,13 +417,17 @@ export default function NewsDashboard({ data, isStreaming, streamingText, onSave
                 ></span>
               </div>
             ) : (
-              <ReactMarkdown 
-                components={markdownComponents}
-                skipHtml={false}
-                urlTransform={(url) => url}
+              <div 
+                onMouseUp={handleCustomHighlight} 
               >
-                {data?.textWithCitations || ''}
-              </ReactMarkdown>
+                <ReactMarkdown 
+                  components={markdownComponents}
+                  skipHtml={false}
+                  urlTransform={(url) => url}
+                >
+                  {data?.textWithCitations || ''}
+                </ReactMarkdown>
+              </div>
             )}
           </div>
         )}

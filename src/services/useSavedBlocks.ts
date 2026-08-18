@@ -34,7 +34,7 @@ export function useSavedBlocks(userId: string | null) {
 
   // Persist every change to the appropriate local storage tier immediately.
   useEffect(() => {
-    console.log("[useSavedBlocks] Persisting change of savedBlocks to storage...", blocks );
+    // console.log("[useSavedBlocks] Persisting change of savedBlocks to storage...", blocks );
     try {
       const { storage, key } = getStorage(userId);
       storage.setItem(key, JSON.stringify(blocks));
@@ -51,7 +51,7 @@ export function useSavedBlocks(userId: string | null) {
     if (!userId || hasSyncedRef.current) return;
     hasSyncedRef.current = true;
 
-    console.log("[useSavedBlocks] A user is signed in, fetching saved blocks...");
+    // console.log("[useSavedBlocks] A user is signed in, fetching saved blocks...");
     getUserBlocks(userId)
       .then(data => {
         console.log("[useSavedBlocks][effect] Fetched (hydrated) blocks from firestore: ", data);

@@ -33,6 +33,7 @@
     "@types/react-dom": "^19.2.3",
     "@vercel/node": "^5.7.15",
     "autoprefixer": "^10.4.22",
+    "js-yaml": "^5.3.0",
     "postcss": "^8.5.6",
     "prettier": "^3.3.3",
     "resend": "^6.17.2",

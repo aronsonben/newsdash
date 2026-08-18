@@ -24,6 +24,7 @@
   --chat-accent: 205 133 63;
   --dashboard-bg: 237 232 227;
   --dashboard-accent: 139 115 85;
+  --welcome-bg: 231 155 236;
   
   /* Earthtone button colors */
   --button-primary: 139 111 78;      /* Earth brown - warm, natural */
@@ -54,6 +55,7 @@
   --chat-accent: 127 179 163;
   --dashboard-bg: 23 26 24;
   --dashboard-accent: 139 196 178;
+  --welcome-bg: 95 23 100;
   
   /* Earthtone button colors */
   --button-primary: 127 179 163;     /* Moss green accent */
@@ -92,6 +94,7 @@
   --chat-accent: 76 154 106;   /* #4C9A6A */
   --dashboard-bg: 35 40 31;    /* #23281F */
   --dashboard-accent: 217 180 74; /* #D9B44A */
+  --welcome-bg: 95 23 100;
 
   /* Button colors */
   --button-primary: 76 154 106;        /* #4C9A6A */

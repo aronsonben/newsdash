@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Link, Outlet } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Outlet } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ChatPanel from './components/ChatPanel';
 import Sidebar from './components/Sidebar';
 import NewsDashboard from './components/NewsDashboard';
-import UsageIndicator from './components/UsageIndicator';
 import MobileShortcutTray from './components/MobileShortcutTray';
 import SavedBlockModal from './components/SavedBlockModal';
 import SavedBlocksList from './components/SavedBlocksList';
@@ -14,16 +13,49 @@ import UsernamePromptModal from './components/UsernamePromptModal';
 import SignInModal from './components/SignInModal';
 import { generateStreamWithGemini} from './lib/geminiClient';
 import { apiClient, firestoreCache } from './lib/apiClient';
-import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse, SavedBlock } from './types';
-import { BASE_SHORTCUTS, CLIMATE_SHORTCUTS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
+import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse, SavedBlock, GroundingChunk } from './types';
+import { CLIMATE_SHORTCUTS, DEFAULT_SHORTCUT, NEWSDASH_CACHE_KEY } from './constants';
 import { useLocalStorage } from './services/useLocalStorage';
 import { useSavedBlocks } from './services/useSavedBlocks';
 import { useAuth } from './services/useAuth';
-import { Timestamp, doc, setDoc } from 'firebase/firestore';
-import { db } from './lib/firestore';
 import { getCacheState } from './lib/utils';
-import { User } from 'firebase/auth';
 
+
+const WelcomeMessage = () => (
+  <>
+  <p className="mb-3" style={{ color: 'rgb(var(--text-primary))' }}>
+    NewsDash is an AI-supported, climate-oriented, locally-focused news dashboard built by {' '}
+    <a href="https://concourse.codes" target="_blank" rel="noreferrer" className="underline">
+      Concourse Codes
+    </a>.
+  </p>
+  <p className="mb-3" style={{ color: 'rgb(var(--text-primary))' }}>
+    NewsDash uses Google Gemini to search the web and scan trusted news sources for the latest climate news.
+    You can see which sources are used at the bottom of each response.
+  </p>
+  <p className="mt-4 mb-5 italic" style={{ color: 'rgb(var(--text-primary))' }}>
+    It's like a <b>plain language RSS feed</b> for local climate news.
+  </p>
+  <p className="mb-3" style={{ color: 'rgb(var(--text-primary))' }}>
+    This is a personal project by
+    <img
+      src="/benicon.png"
+      alt="Ben Head Icon"
+      className="h-10 w-auto inline-block"
+    />
+    <a href="https://concourse.codes/about.html" target="_blank" rel="noreferrer" className="underline">
+      Ben Aronson
+    </a>.
+    If you have any questions, feel free to {' '}
+    <a href="https://concourse.codes/contact.html" target="_blank" rel="noreferrer" className="underline">
+      get in touch
+    </a>.
+  </p>
+  <p style={{ color: 'rgb(var(--text-muted))' }} className="text-sm">
+    Version 1.0 · Built with React, Vite, and Tailwind CSS. <a href="https://github.com/aronsonben/newsdash" target='_blank' className='underline'>Check out the project on Github.</a>
+  </p>
+  </>
+)
 
 
 export default function App() {
@@ -49,6 +81,16 @@ export default function App() {
   const [isFetching, setIsFetching] = useState<boolean>(false);                           // 'true' indicates the app is fetching data when user switches between shortcuts
   const [cloudSaveState, setCloudSaveState] = useState<CloudSaveState>('idle');           // indicates the state of the 'save to cloud' functionality
   const [tempSignInEmail, setTempSignInEmail] = useLocalStorage<string>('temp_email', '');// Hold the temporary email value for magic link sign-ins
+  const [highlightedText, setHighlightedText] = useState<string>('');                     // custom highlight text tooltip feature
+  const [highlightedCitations, setHighlightedCitations] = useState<GroundingChunk[]>([]);       // if any citations are highlighted, include those here
+  const [tooltipStyles, setTooltipStyles] = useState<{
+    position: string,
+    left: string,
+    top: string,
+    transform: string,
+    zIndex: number
+  } | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   // Cache 
   const [promptCache, setPromptCache] = useLocalStorage<CacheData[]>(NEWSDASH_CACHE_KEY, []);   // localStorage Cache Object [{ shortcut1_obj }, { shortcut2_obj }, {...}]
   const [cachedIds, setCachedIds] = useState<string[]>([]);                               // array of cachedIds from promptCache for easier parsing 
@@ -61,6 +103,7 @@ export default function App() {
   const [storedUsername, setStoredUsername] = useLocalStorage<string>('newsdash_username', '');
   const [isSignInModalOpen, setIsSignInModalOpen] = useState<boolean>(false);
   const [isUsernameModalOpen, setIsUsernameModalOpen] = useState<boolean>(false);
+  const [showWelcome, setShowWelcome] = useLocalStorage<boolean>("show_welcome_msg", true); // show the welcome msg for first time users
   const [anonPlaceholder, setAnonPlaceholder] = useState<string>('');
   // Saved blocks
   const { 
@@ -122,7 +165,20 @@ export default function App() {
       await handleShortcutSelect(DEFAULT_SHORTCUT);
       prefetchAllShortcuts();
     };
+
+    // This handles the user clicking outside a custom highlight
+    const handleOutsideClick = (event: MouseEvent) => {
+      if ( tooltipRef.current && event.target instanceof Node &&  !tooltipRef.current.contains(event.target) ) {
+        window.getSelection()?.removeAllRanges();
+        setTooltipStyles(null);
+        setHighlightedText('');
+      }
+    };
+
     init();
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
   // Check for a magic link sign-in once Firebase has resolved the session.
@@ -437,8 +493,6 @@ export default function App() {
   const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean, timestamp?: number) => {
     setNewsData(data);
 
-    // TODO: what are these doing
-    // setCacheTimestamp(timestamp || null);
     // New response — allow saving to cloud
     setCloudSaveState('idle');
   };
@@ -457,6 +511,63 @@ export default function App() {
       setTimeout(() => setStreamingText(''), 100);
     }
   };
+
+
+  /** 
+   * Handle the custom highlight tooltip that appears when a user selects text in their
+   * dashboard response.
+   */
+  const handleCustomHighlight = (text: string | null, selection: Selection | null, citations?: GroundingChunk[]) => {
+    if (!text && !selection) {
+      setTooltipStyles(null);
+      setHighlightedText('');
+      setHighlightedCitations([]);
+      return;
+    }
+    if ((text && !selection) || (!text && selection)) return;
+    if (!text) return;
+    if (!selection) return;
+
+    console.log("[App] Custom Highlight at top level", text);
+    console.log("[App] Focus node: ", selection);
+
+    let range = selection.getRangeAt(0);
+    let rect = range.getBoundingClientRect();
+
+    // Calculate position relative to the viewport (accounting for scroll)
+    const top = rect.top + window.scrollY;
+    const left = rect.left + window.scrollX;
+    const width = rect.width;
+
+    // Center the tooltip horizontally slightly above the selection.
+    const dropdownStyle = {
+      position: "absolute" as const,
+      left: `${left + width / 2}px`,
+      top: `${top - 10}px`, 
+      transform: "translate(-50%, -100%)",
+      zIndex: 1000,
+    } satisfies React.CSSProperties;
+    setTooltipStyles(dropdownStyle);
+    setHighlightedText(text);
+    setHighlightedCitations(citations ?? []);
+  }
+
+  /**
+   * Handle the 'save' action in the custom tooltip
+   */
+  const handleSaveHighlight = () => {
+    // Quick random id out of highlighted text + date
+    const id = `${highlightedText}-${Date.now()}`;
+    const saveBlock = {
+      id,
+      title: "New Block",
+      text: highlightedText,
+      citations: highlightedCitations
+    }
+    handleSaveBlock(saveBlock);
+    setTooltipStyles(null);
+    setHighlightedText('');
+  }
 
   // ––– CORE FEATURE FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
@@ -538,7 +649,6 @@ export default function App() {
     }
   }
 
-
   // ––– RETURN JSX –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
   return (
@@ -566,6 +676,23 @@ export default function App() {
           limitReached={limitReached}
         />
         <div className="flex-1 p-4 max-w-full md:max-w-240 mx-auto">
+          {showWelcome && (
+            <section className="mb-2 p-3 rounded-xl bg-[rgb(var(--welcome-bg))] border border-[rgb(var(--border))]">
+              <div className="flex justify-between items-center mb-4 pr-4">
+                <h3 className="text-xl font-semibold italic color-[rgb(var(--text-secondary))]">
+                  Welcome to NewsDash!
+                </h3>
+                <button
+                  onClick={() => setShowWelcome(false)}
+                  className="text-xl opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
+                  style={{ color: 'rgb(var(--text-primary))' }}
+                >
+                    x
+                </button>
+              </div>
+              <WelcomeMessage />
+            </section>
+          )}
           <section className="mb-2">
             <p className="text-xs font-grotesk" style={{ color: 'rgb(var(--text-muted))' }}>
               Latest news summaries on interesting topics.
@@ -588,6 +715,9 @@ export default function App() {
             isFetching={isFetching}
             currentCacheObj={currentCacheObj}
             currentCacheState={currentCacheState}
+            highlightedText={highlightedText}
+            setHighlightedText={handleCustomHighlight}
+            highlightedCitations={highlightedCitations}
             storedUsername={storedUsername}
             onSaveBlock={handleSaveBlock}
           />
@@ -610,6 +740,25 @@ export default function App() {
       </div> */}
       
       <Footer />
+
+      {tooltipStyles && (
+        <div
+          ref={tooltipRef}
+          className="text-sm bg-[rgb(var(--bg-primary))] text-[rgb(var(--text-secondary))] py-1 px-2 border rounded-lg border-[rgb(var(--border))] whitespace-nowrap" 
+          style={{
+            ...tooltipStyles,
+            boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
+          } as React.CSSProperties}
+        >
+          {/* TODO: improve handle save block here */}
+          <button
+            onClick={handleSaveHighlight}
+            className="p-2 rounded-xl hover:bg-[rgb(var(--bg-secondary))] transition-opacity cursor-pointer"
+          >
+            Save
+          </button>
+        </div>
+      )}
 
       {/* Save block warning modal — shown once per session for unauthenticated users */}
       {showSaveBlockWarning && (

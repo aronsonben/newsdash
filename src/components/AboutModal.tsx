@@ -37,7 +37,7 @@ export default function AboutModal({ onClose }: AboutModalProps) {
         </a>.
       </p>
       <p style={{ color: 'rgb(var(--text-muted))' }} className="text-sm">
-        Version 1.0 · Built with React, Vite, and Tailwind CSS.
+        Version 1.0 · Built with React, Vite, and Tailwind CSS. <a href="https://github.com/aronsonben/newsdash" target='_blank' className='underline'>Check out the project on Github.</a>
       </p>
     </Modal>
   );

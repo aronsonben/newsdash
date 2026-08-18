@@ -6,6 +6,8 @@ newsdash.code-workspace
 .DS_Store
 
 newsdash-concourse-1346d2a7aa82.json
+audit-report-*.txt
+sample_response.md
 
 .github/personal-instructions.md
 .github/prompts.md

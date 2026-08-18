@@ -12,7 +12,7 @@ export function useAuth() {
     // then again on every sign-in/sign-out. Firebase persists the session to
     // indexedDB automatically — the user stays logged in across page refreshes.
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      console.log("[useAuth] User is signed if obj is valid: ", firebaseUser);
+      // console.log("[useAuth] User is signed if obj is valid: ", firebaseUser);
       setUser(firebaseUser);
       setLoading(false);
     });
