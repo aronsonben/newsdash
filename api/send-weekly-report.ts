@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHmac } from 'crypto';
+import { GoogleGenAI } from '@google/genai';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { Resend } from 'resend';
@@ -77,6 +78,53 @@ function extractFirstParagraph(text: string): string {
   return text.replace(/\n/g, ' ').substring(0, 500).trim();
 }
 
+// System instruction adapted from .github/agents/ClimateNews.agent.md
+const CLIMATE_NEWS_SYSTEM_INSTRUCTION = `You are a journalist specialising in climate news on both a worldwide and hyperlocal scale. You have an astute grasp on understanding what the most important 3-4 topics are from a longer-form written piece in a way that grabs the attention of climate-minded readers.
+
+The text you are given is a research summary of the latest climate, environment, and sustainability news.
+
+Your job is to distill it into the most important 3-4 sentences for a quick at-a-glance email digest. Include any relevant citation links from the source text in your output.
+
+Lead with the biggest news. Prioritize timeline-based, action-oriented, and near-term climate news over long-term background topics.
+
+Tone: straight and to the point. Your audience is professionals who want rapid, no-fluff summaries.
+
+Output plain sentences only — no headings, no bullet points, no markdown formatting except inline citation links in the format [text](url).`;
+
+/**
+ * Calls Gemini to distill the full cached text into a 3-4 sentence email digest summary.
+ * Falls back to extractFirstParagraph if the API call fails.
+ */
+async function summarizeWithLLM(textWithCitations: string, shortcutName: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('[send-weekly-report] GEMINI_API_KEY not set; falling back to extractFirstParagraph');
+    return extractFirstParagraph(textWithCitations);
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Summarize the following ${shortcutName} report:\n\n${textWithCitations}`,
+      config: { systemInstruction: CLIMATE_NEWS_SYSTEM_INSTRUCTION },
+    });
+
+    const summary = response.text?.trim();
+    if (!summary) {
+      console.warn(`[send-weekly-report] Empty LLM summary for "${shortcutName}"; falling back`);
+      return extractFirstParagraph(textWithCitations);
+    }
+
+    console.log(`[send-weekly-report] Summarized "${shortcutName}" (${summary.length} chars)`);
+    return summary;
+  } catch (err) {
+    console.error(`[send-weekly-report] Gemini summarization failed for "${shortcutName}":`, err);
+    return extractFirstParagraph(textWithCitations);
+  }
+}
+
 /**
  * Generates the HMAC-SHA256 token used to authenticate one-click
  * unsubscribe links embedded in outbound emails.
@@ -99,11 +147,15 @@ function buildEmailHtml(sections: ShortcutSection[], unsubscribeUrl: string, app
   const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const logoUrl = `${appUrl}/newsdash_green.png`;
 
+  /** Converts markdown inline links [text](url) to HTML anchor tags. */
+  const renderLinks = (text: string) =>
+    text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" style="color:#8B4513;text-decoration:underline;" target="_blank" rel="noopener noreferrer">$1</a>');
+
   const sectionHtml = sections.map(({ name, paragraph }, i) => `
     <tr>
       <td style="padding:20px 36px 0;">
         <p style="margin:0 0 6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#8B4513;">${name}</p>
-        <p style="margin:0 0 20px;font-size:14px;line-height:1.75;color:#4A3528;${i < sections.length - 1 ? 'border-bottom:1px solid #D4C4B0;' : ''}padding-bottom:20px;">${paragraph}</p>
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.75;color:#4A3528;${i < sections.length - 1 ? 'border-bottom:1px solid #D4C4B0;' : ''}padding-bottom:20px;">${renderLinks(paragraph)}</p>
       </td>
     </tr>`).join('');
 
@@ -160,6 +212,9 @@ function buildEmailHtml(sections: ShortcutSection[], unsubscribeUrl: string, app
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
+// 4 sequential Gemini calls at ~15–30s each requires headroom beyond the default 10s limit
+export const config = { maxDuration: 300 };
+
 /**
  * Triggered weekly by a GitHub Actions cron job.
  * Reads cached responses for all 5 shortcuts from Firestore, extracts one
@@ -185,24 +240,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const db = getDb();
 
-    // ── 1. Fetch all 5 prompt_cache documents in parallel ──────────────────
+    // ── 1. Fetch all prompt_cache documents in parallel ──────────────────
     const cacheSnapshots = await Promise.all(
       SHORTCUTS.map(s => getDoc(doc(db, 'prompt_cache', s.id)))
     );
 
-    const sections: ShortcutSection[] = SHORTCUTS.map((shortcut, i) => {
+    // ── 1b. Summarize each cached response with Gemini (sequential to stay within timeout) ──
+    const sections: ShortcutSection[] = [];
+    for (let i = 0; i < SHORTCUTS.length; i++) {
+      const shortcut = SHORTCUTS[i];
       const snap = cacheSnapshots[i];
+
       if (!snap.exists()) {
-        return { name: shortcut.name, paragraph: 'No recent data available — open NewsDash to generate this week\'s content.' };
+        sections.push({ name: shortcut.name, paragraph: 'No recent data available — open NewsDash to generate this week\'s content.' });
+        continue;
       }
+
       const entry = snap.data();
-      // Support both the nested-data schema and the legacy flat schema
-      const text: string = entry?.data?.text ?? entry?.text ?? '';
-      return {
-        name: shortcut.name,
-        paragraph: text ? extractFirstParagraph(text) : 'No content available for this category.',
-      };
-    });
+      // Prefer textWithCitations so citation links are preserved in the summary; fall back through schema variants
+      const textWithCitations: string = entry?.data?.textWithCitations ?? entry?.textWithCitations ?? entry?.data?.text ?? entry?.text ?? '';
+      const paragraph = textWithCitations
+        ? await summarizeWithLLM(textWithCitations, shortcut.name)
+        : 'No content available for this category.';
+
+      sections.push({ name: shortcut.name, paragraph });
+    }
 
     // ── 2. Fetch all active subscribers ────────────────────────────────────
     const subsQuery = query(collection(db, 'email_subscriptions'), where('active', '==', true));
