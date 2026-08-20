@@ -19,8 +19,8 @@ export function toTimestampMillis(value: Timestamp | SerializedTimestamp): numbe
  */
 export function getCacheState(cacheObj: CacheData | null): 'none' | 'fresh' | 'stale' {
   if (!cacheObj) { return 'none'; }
-
-  const cacheDifference = Date.now() - cacheObj.updatedAt;
+  
+  const cacheDifference = Date.now() - toTimestampMillis(cacheObj.updatedAt);
 
   if (cacheDifference < FRESH_TTL_MS) {
     return 'fresh';

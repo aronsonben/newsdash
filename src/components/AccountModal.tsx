@@ -221,7 +221,7 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
       >
         Sign out
       </button>
-      {/* {import.meta.env.DEV && (
+      {import.meta.env.DEV && (
         <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgb(var(--border))' }}>
           <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: 'rgb(var(--text-muted))' }}>Firebase Migrations</p>
           <button
@@ -244,7 +244,7 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
             {migrationStatus === 'idle' && 'Convert updatedAt millis → Timestamp'}
           </button>
         </div>
-      )} */}
+      )}
       {import.meta.env.DEV && (
         <button
           onClick={handleTestWeeklyReport}
