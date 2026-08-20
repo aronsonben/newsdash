@@ -86,11 +86,18 @@ interface CachedResponse {
 interface CacheStorage {
   [key: string]: CachedResponse;
 }
-
+/* 
 export interface CacheData {
   id: string;
   data: GeminiGenerateResponse;
   updatedAt: number;
+  savedBy?: string;
+} */
+
+export interface CacheData {
+  id: string;
+  data: GeminiGenerateResponse;
+  updatedAt: Timestamp;
   savedBy?: string;
 }
 

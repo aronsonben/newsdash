@@ -19,6 +19,7 @@ import { useLocalStorage } from './services/useLocalStorage';
 import { useSavedBlocks } from './services/useSavedBlocks';
 import { useAuth } from './services/useAuth';
 import { getCacheState } from './lib/utils';
+import { Timestamp } from 'firebase/firestore';
 
 
 const WelcomeMessage = () => (
@@ -490,7 +491,7 @@ export default function App() {
    * @param fromCache - indicates whether the `data` obj came from the localStorage-based cache (`true`) or the database (`false`)
    * @param timestamp 
    */
-  const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean, timestamp?: number) => {
+  const handleResponse = (data: GeminiGenerateResponse, fromCache: boolean, timestamp?: Timestamp) => {
     setNewsData(data);
 
     // New response — allow saving to cloud
@@ -629,7 +630,7 @@ export default function App() {
         const freshEntry: CacheData = {
           id: promptId,
           data: fullResponse,
-          updatedAt: Date.now()
+          updatedAt: Timestamp.now()
         };
         return [freshEntry, ...prev.filter((entry) => entry.id !== promptId)];
       });

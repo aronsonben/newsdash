@@ -93,7 +93,7 @@ export default function NewsDashboard({
     : (storedUsername && storedUsername === savedBy ? 'you' : (savedBy || 'anonymous'));
 
   const STALE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // prompt to re-run after 3 days
-  const isOld = !!currentCacheObj && (Date.now() - currentCacheObj.updatedAt) > STALE_THRESHOLD_MS;
+  const isOld = !!currentCacheObj && (Date.now() - currentCacheObj.updatedAt.toMillis()) > STALE_THRESHOLD_MS;
 
   // ––– CITATION POPUP HANDLERS ––––––––––––
   // these are for handling the pop-up that appears in the citation segment view
@@ -317,7 +317,8 @@ export default function NewsDashboard({
                 <span>
                   {'Last run '}
                   <span style={{ color: isOld ? 'rgb(var(--accent))' : 'rgb(var(--text-muted))' }}>
-                    {formatRelativeTime(currentCacheObj.updatedAt)}
+                    {/* {formatRelativeTime(currentCacheObj.updatedAt.toMillis())} */}
+                    {currentCacheObj.updatedAt.toString()}
                   </span>
                   {' by '}
                   <strong style={{ color: 'rgb(var(--text-secondary))' }} title={(displayNameRunner === 'you') ? storedUsername : savedBy}>

@@ -62,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       groundingSupports: data.groundingSupports ?? [],
       searchEntryPoint:  data.searchEntryPoint  ?? null,
     },
-    updatedAt:         Timestamp.now().toMillis(),
+    updatedAt:         Timestamp.now(),
     ...(savedBy && typeof savedBy === 'string' ? { savedBy } : {}),
   };
 

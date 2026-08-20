@@ -189,7 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         groundingSupports: finalGroundingMetadata?.groundingSupports    ?? [],
         searchEntryPoint:  finalGroundingMetadata?.searchEntryPoint?.renderedContent ?? undefined,
       },
-      updatedAt: Timestamp.now().toMillis(),
+      updatedAt: Timestamp.now(),
     };
 
     const db = getDb();

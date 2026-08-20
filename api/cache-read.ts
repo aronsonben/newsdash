@@ -68,18 +68,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       searchEntryPoint:   payload.searchEntryPoint  ?? null,
     }
 
-    const storedUpdatedAt =
-      typeof entry.updatedAt === 'number'
-        ? entry.updatedAt
-        : typeof payload.updatedAt === 'number'
-          ? payload.updatedAt
-          : null;
+    const storedUpdatedAt: Timestamp = entry.updatedAt;
 
     if (!storedUpdatedAt) {
       return res.status(200).json({ status: 'miss' });
     }
 
-    const ageMs = Date.now() - storedUpdatedAt;
+    const ageMs = Date.now() - storedUpdatedAt.toMillis();
 
     // Always return the last known entry regardless of age.
     // fresh = < 24 h, stale = ≥ 24 h. The client decides how to surface the age.
