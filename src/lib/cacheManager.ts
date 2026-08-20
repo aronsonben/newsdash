@@ -1,14 +1,4 @@
-import { GeminiGenerateResponse } from "src/types";
-
-interface CachedResponse {
-  data: GeminiGenerateResponse;
-  timestamp: number;
-  promptHash: string;
-}
-
-interface CacheStorage {
-  [key: string]: CachedResponse;
-}
+import { GeminiGenerateResponse, CachedResponse, CacheStorage } from "src/types";
 
 const CACHE_KEY = 'newsdash_response_cache';
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds

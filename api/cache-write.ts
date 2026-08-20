@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import admin from 'firebase-admin';
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, Firestore, doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
-import { CacheData } from '../src/types';
+import { getFirestore, collection, Firestore, doc, setDoc, updateDoc, addDoc, increment, arrayUnion, Timestamp } from "firebase/firestore";
+import { CacheData, CitationSummary, HistoryEntry, GroundingChunk, GroundingSupport } from '../src/types';
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_BROWSER_API_KEY,
@@ -15,23 +15,77 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// ─── Firebase Admin singleton ─────────────────────────────────────────────────
-// function getDb(): admin.firestore.Firestore {
-//   if (!admin.apps.length) {
-//     admin.initializeApp({
-//       credential: admin.credential.cert({
-//         projectId: process.env.FIREBASE_PROJECT_ID,
-//         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-//         privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-//       }),
-//     });
-//   }
-//   return admin.firestore();
-// }
-
 function getDb(): Firestore {
   const db = getFirestore(app);
   return db;
+}
+
+// ─── Pre-processing helpers ───────────────────────────────────────────────────
+
+/** Dots are Firestore path separators in updateDoc — replace to avoid misinterpretation */
+function toFieldKey(s: string): string {
+  return s.replace(/\./g, '-').replace(/\//g, '-').substring(0, 500);
+}
+
+/** Extracts markdown headings from response text, stripping emojis for clean keys */
+function extractHeadings(text: string): string[] {
+  const headingRegex = /^#{1,6}\s+(.+)$/gm;
+  const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+  const headings: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = headingRegex.exec(text)) !== null) {
+    const cleaned = match[1].replace(emojiRegex, '').trim();
+    if (cleaned) headings.push(cleaned);
+  }
+  return headings;
+}
+
+/** Joins groundingChunks + groundingSupports into compact per-source citation metrics */
+function buildCitationSummaries(
+  chunks: GroundingChunk[],
+  supports: GroundingSupport[],
+  textLength: number
+): CitationSummary[] {
+  // Map chunkIndex → { title, displayTitle }
+  const chunkMap = new Map<number, { title: string; displayTitle: string }>();
+  for (let i = 0; i < chunks.length; i++) {
+    const raw = chunks[i]?.web?.title;
+    if (!raw) continue;
+    chunkMap.set(i, { displayTitle: raw, title: raw.toLowerCase().trim() });
+  }
+
+  // Accumulate per-title appearance data across all supports
+  const accumulator = new Map<string, { displayTitle: string; count: number; appearances: number[] }>();
+  for (const support of supports) {
+    const startIndex = support.segment?.startIndex ?? 0;
+    for (const chunkIdx of support.groundingChunkIndices ?? []) {
+      const chunk = chunkMap.get(chunkIdx);
+      if (!chunk) continue;
+      const existing = accumulator.get(chunk.title);
+      if (existing) {
+        existing.count++;
+        existing.appearances.push(startIndex);
+      } else {
+        accumulator.set(chunk.title, { displayTitle: chunk.displayTitle, count: 1, appearances: [startIndex] });
+      }
+    }
+  }
+
+  // Flatten accumulator into CitationSummary[]
+  return Array.from(accumulator.entries()).map(([title, data]) => {
+    const firstAppearanceIndex = Math.min(...data.appearances);
+    const avgAppearanceIndex = Math.round(
+      data.appearances.reduce((a, b) => a + b, 0) / data.appearances.length
+    );
+    return {
+      title,
+      displayTitle: data.displayTitle,
+      citationCount: data.count,
+      firstAppearanceIndex,
+      firstAppearanceNormalized: textLength > 0 ? firstAppearanceIndex / textLength : 0,
+      avgAppearanceIndex,
+    };
+  });
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -70,9 +124,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const db = getDb();
     const promptCacheRef = doc(db, 'prompt_cache', promptId);
     await setDoc(promptCacheRef, cacheData);
+
+    // ── History + stats writes are fire-and-forget; a failure here does not fail the cache write
+    writeHistory(db, promptId, data).catch((err) => {
+      console.error('[cache-write] History/stats write error:', err);
+    });
+
     return res.status(200).json({ success: true });
   } catch (err) {
     console.error('[cache-write] Firestore write error:', err);
     return res.status(500).json({ error: 'Failed to write to cache' });
   }
 }
+
+/** Appends a HistoryEntry subcollection doc and updates the prompt_stats aggregate */
+async function writeHistory(db: Firestore, promptId: string, data: any): Promise<void> {
+  const searchQueries: string[] = data.searchQueries ?? [];
+  const textHeadings = extractHeadings(data.text);
+  const citations = buildCitationSummaries(
+    data.groundingChunks ?? [],
+    data.groundingSupports ?? [],
+    data.text.length
+  );
+
+  const historyEntry: HistoryEntry = {
+    capturedAt: Timestamp.now(),
+    promptId,
+    citations,
+    searchQueries,
+    textHeadings,
+  };
+
+  const historyRef = collection(db, 'prompt_cache', promptId, 'history');
+  const statsRef = doc(db, 'prompt_stats', promptId);
+
+  // Build the stats update object with dynamic dot-notation map keys
+  const statsUpdate: Record<string, any> = {
+    promptId,
+    totalGenerations: increment(1),
+    lastUpdatedAt: Timestamp.now(),
+    ...(searchQueries.length > 0 ? { allSearchQueries: arrayUnion(...searchQueries) } : {}),
+  };
+
+  for (const heading of textHeadings) {
+    statsUpdate[`headingFrequency.${toFieldKey(heading)}`] = increment(1);
+  }
+  for (const citation of citations) {
+    const key = toFieldKey(citation.title);
+    statsUpdate[`citationFrequency.${key}`] = increment(citation.citationCount);
+    statsUpdate[`citationFirstAppearanceSum.${key}`] = increment(citation.firstAppearanceNormalized);
+    statsUpdate[`citationGenerationCount.${key}`] = increment(1);
+  }
+
+  await addDoc(historyRef, historyEntry);
+
+  // updateDoc fails if the stats doc doesn't yet exist — initialize it on first run
+  try {
+    await updateDoc(statsRef, statsUpdate);
+  } catch (e: any) {
+    if (e?.code === 'not-found') {
+      await setDoc(statsRef, { promptId });
+      await updateDoc(statsRef, statsUpdate);
+    } else {
+      throw e;
+    }
+  }
+}
+

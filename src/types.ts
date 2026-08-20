@@ -78,27 +78,56 @@ export type GeminiGenerateResponse = {
 
 // ––– Cache Types ––––––––––––––––––––––––––––––
 
-interface CachedResponse {
+export interface CachedResponse {
   data: GeminiGenerateResponse;
   timestamp: number;
+  promptHash: string;
 }
 
-interface CacheStorage {
+export interface CacheStorage {
   [key: string]: CachedResponse;
 }
-/* 
-export interface CacheData {
-  id: string;
-  data: GeminiGenerateResponse;
-  updatedAt: number;
-  savedBy?: string;
-} */
 
+/** This is the type definition for all of the 'prompt_cache' database documents */
 export interface CacheData {
   id: string;
   data: GeminiGenerateResponse;
   updatedAt: Timestamp;
   savedBy?: string;
+}
+
+// ––– Cache History ––––––––––––––––––––––––––––––
+
+
+/** Pre-processed citation data derived from a single grounding chunk/supports pair */
+export interface CitationSummary {
+  title: string;                   // normalized key (lowercase, trimmed)
+  displayTitle: string;            // original for display
+  citationCount: number;
+  firstAppearanceIndex: number;    // raw char offset
+  firstAppearanceNormalized: number; // 0.0–1.0 relative to response length
+  avgAppearanceIndex: number;
+}
+
+export interface HistoryEntry {
+  capturedAt: Timestamp;
+  promptId: string;                // denormalized for easier cross-collection queries
+  citations: CitationSummary[];    // pre-processed, replaces raw groundingChunks/Supports
+  searchQueries: string[];         // straight from GeminiGenerateResponse
+  textHeadings: string[];          // extracted markdown headings, emoji stripped
+}
+
+/** One document in the prompt_stats collection — aggregated metrics across all generations */
+export interface PromptStats {
+  promptId: string;
+  totalGenerations: number;
+  lastUpdatedAt: Timestamp;
+  // keyed by CitationSummary.title
+  citationFrequency: Record<string, number>;       // sum of citationCount across all generations
+  citationFirstAppearanceAvg: Record<string, number>; // rolling avg of firstAppearanceNormalized
+  citationGenerationCount: Record<string, number>; // how many generations this source appeared in
+  allSearchQueries: string[];                      // cumulative arrayUnion
+  headingFrequency: Record<string, number>;        // sum across all generations
 }
 
 
