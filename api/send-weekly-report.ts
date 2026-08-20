@@ -21,7 +21,6 @@ function getDb() {
 // ─── Shortcut metadata ────────────────────────────────────────────────────────
 
 const SHORTCUTS = [
-  { id: 'ai-innovation-daily-review',         name: 'AI Innovation Daily Review' },
   { id: 'global-climate-headlines-weekly',    name: 'Latest Climate Headlines Weekly' },
   { id: 'massachusetts-climate-news-weekly',  name: 'Massachusetts Climate News Weekly' },
   { id: 'new-england-climate-news-weekly',    name: 'New England Climate News Weekly' },

@@ -1,5 +1,15 @@
 import { CacheData, BlockSegment, GroundingChunk } from "src/types";
 import { FRESH_TTL_MS } from "../constants";
+import { Timestamp } from 'firebase/firestore';
+
+/** Serialized shape Firestore Timestamp takes after a localStorage round-trip. */
+type SerializedTimestamp = { seconds: number; nanoseconds: number };
+
+/** Converts a Firestore Timestamp or its deserialized localStorage form to milliseconds. */
+export function toTimestampMillis(value: Timestamp | SerializedTimestamp): number {
+  if (value instanceof Timestamp) return value.toMillis();
+  return value.seconds * 1000 + Math.floor(value.nanoseconds / 1_000_000);
+}
 
 /**
  * Returns the freshness state of a cached entry.

@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import Modal from './Modal';
 import { useLocalStorage } from '../services/useLocalStorage';
 import { getUserProfile } from '../lib/firestore';
+import { convertMillisToTimestamp } from '../lib/firestoreMigrations';
 
 interface AccountModalProps {
   user: User;
@@ -24,6 +25,7 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
   const [profileLoading, setProfileLoading] = useState(true);
   const [subscribeLoading, setSubscribeLoading] = useState(false);
   const [testReportStatus, setTestReportStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [migrationStatus, setMigrationStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [showDigestTooltip, setShowDigestTooltip] = useState(false);
 
   // Load current subscription status from the users/{uid} Firestore document on open.
@@ -219,6 +221,30 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
       >
         Sign out
       </button>
+      {/* {import.meta.env.DEV && (
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgb(var(--border))' }}>
+          <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: 'rgb(var(--text-muted))' }}>Firebase Migrations</p>
+          <button
+            onClick={async () => {
+              setMigrationStatus('loading');
+              try {
+                await convertMillisToTimestamp();
+                setMigrationStatus('ok');
+              } catch {
+                setMigrationStatus('error');
+              }
+            }}
+            disabled={migrationStatus === 'loading'}
+            className="w-full px-4 py-2 rounded-lg border text-sm font-medium transition-colors duration-200 disabled:opacity-50"
+            style={{ borderColor: 'rgb(var(--border))', color: 'rgb(var(--text-secondary))' }}
+          >
+            {migrationStatus === 'loading' && 'Running…'}
+            {migrationStatus === 'ok' && 'Migration complete — check console'}
+            {migrationStatus === 'error' && 'Migration failed — check console'}
+            {migrationStatus === 'idle' && 'Convert updatedAt millis → Timestamp'}
+          </button>
+        </div>
+      )} */}
       {import.meta.env.DEV && (
         <button
           onClick={handleTestWeeklyReport}

@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import { GeminiGenerateResponse, GroundingChunk, CloudSaveState, NewsItem, CacheData, Shortcut, BlockSegment, SavedBlock } from 'src/types';
 import { FRESH_TTL_MS, SEGMENT_COLORS } from '../constants';
-import { getCacheState, segmentMarkdownByHeaders } from '../lib/utils';
+import { getCacheState, segmentMarkdownByHeaders, toTimestampMillis } from '../lib/utils';
 
 /**
  * Returns a human-readable relative time string (e.g. "just now", "3h ago", "5 days ago")
@@ -60,7 +60,6 @@ export default function NewsDashboard({
   const dialogRef = React.useRef<HTMLDialogElement>(null);
   const [selectedSegment, setSelectedSegment] = React.useState<string | null>(null);
   const [dialogPosition, setDialogPosition] = React.useState({ top: 0, left: 0 });      // TODO: don't think I need this saved in state
-  // Misc. State
 
   // Pre-process response text into header segments for the save-block feature.
   const segments: BlockSegment[] = React.useMemo(() => {
@@ -93,7 +92,7 @@ export default function NewsDashboard({
     : (storedUsername && storedUsername === savedBy ? 'you' : (savedBy || 'anonymous'));
 
   const STALE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // prompt to re-run after 3 days
-  const isOld = !!currentCacheObj && (Date.now() - currentCacheObj.updatedAt.toMillis()) > STALE_THRESHOLD_MS;
+  const isOld = !!currentCacheObj && (Date.now() - toTimestampMillis(currentCacheObj.updatedAt)) > STALE_THRESHOLD_MS;
 
   // ––– CITATION POPUP HANDLERS ––––––––––––
   // these are for handling the pop-up that appears in the citation segment view
@@ -317,8 +316,7 @@ export default function NewsDashboard({
                 <span>
                   {'Last run '}
                   <span style={{ color: isOld ? 'rgb(var(--accent))' : 'rgb(var(--text-muted))' }}>
-                    {/* {formatRelativeTime(currentCacheObj.updatedAt.toMillis())} */}
-                    {currentCacheObj.updatedAt.toString()}
+                    {formatRelativeTime(toTimestampMillis(currentCacheObj.updatedAt))}
                   </span>
                   {' by '}
                   <strong style={{ color: 'rgb(var(--text-secondary))' }} title={(displayNameRunner === 'you') ? storedUsername : savedBy}>
