@@ -61,8 +61,6 @@ export default function NewsDashboard({
   const [selectedSegment, setSelectedSegment] = React.useState<string | null>(null);
   const [dialogPosition, setDialogPosition] = React.useState({ top: 0, left: 0 });      // TODO: don't think I need this saved in state
   // Misc. State
-  const [isSaveHovered, setIsSaveHovered] = React.useState<boolean>(false);
-  
 
   // Pre-process response text into header segments for the save-block feature.
   const segments: BlockSegment[] = React.useMemo(() => {

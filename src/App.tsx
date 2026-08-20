@@ -528,8 +528,8 @@ export default function App() {
     if (!text) return;
     if (!selection) return;
 
-    console.log("[App] Custom Highlight at top level", text);
-    console.log("[App] Focus node: ", selection);
+    // console.log("[App] Custom Highlight at top level", text);
+    // console.log("[App] Focus node: ", selection);
 
     let range = selection.getRangeAt(0);
     let rect = range.getBoundingClientRect();
