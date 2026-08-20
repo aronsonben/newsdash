@@ -74,6 +74,7 @@ export function Sidebar({ selectedId, cachedIds, onSelect, savedBlocks, onEditBl
               <span className="hidden lg:block font-medium font-grotesk group-hover:theme-sidebar-accent transition-colors">
                 {item.name}
               </span>
+              {/* yellow cached indicator */}
               {cachedIds.indexOf(item.id) >= 0 && (
                 <span 
                   id="cached-indicator"

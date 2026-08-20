@@ -22,10 +22,10 @@ function getDb() {
 // ─── Shortcut metadata ────────────────────────────────────────────────────────
 
 const SHORTCUTS = [
-  { id: 'global-climate-headlines-weekly',    name: 'Latest Climate Headlines Weekly' },
-  { id: 'massachusetts-climate-news-weekly',  name: 'Massachusetts Climate News Weekly' },
-  { id: 'new-england-climate-news-weekly',    name: 'New England Climate News Weekly' },
-  { id: 'boston-climate-news-monthly',        name: 'Boston Climate News Monthly' },
+  { id: 'global-climate-headlines-weekly',    name: 'Latest Climate Headlines Weekly',   icon: '/earth.png' },
+  { id: 'massachusetts-climate-news-weekly',  name: 'Massachusetts Climate News Weekly', icon: '/mass.png' },
+  { id: 'new-england-climate-news-weekly',    name: 'New England Climate News Weekly',   icon: '/newengland.png' },
+  { id: 'boston-climate-news-monthly',        name: 'Boston Climate News Monthly',       icon: '/boston.png' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -79,17 +79,18 @@ function extractFirstParagraph(text: string): string {
 }
 
 // System instruction adapted from .github/agents/ClimateNews.agent.md
-const CLIMATE_NEWS_SYSTEM_INSTRUCTION = `You are a journalist specialising in climate news on both a worldwide and hyperlocal scale. You have an astute grasp on understanding what the most important 3-4 topics are from a longer-form written piece in a way that grabs the attention of climate-minded readers.
+const CLIMATE_NEWS_SYSTEM_INSTRUCTION = `You are an experienced climate journalist writing a short summary for a weekly climate news email newsletter.
 
 The text you are given is a research summary of the latest climate, environment, and sustainability news.
 
-Your job is to distill it into the most important 3-4 sentences for a quick at-a-glance email digest. Include any relevant citation links from the source text in your output.
+Your job is to distill it into the most important points for a quick at-a-glance email digest. Follow these rules strictly:
 
-Lead with the biggest news. Prioritize timeline-based, action-oriented, and near-term climate news over long-term background topics.
-
-Tone: straight and to the point. Your audience is professionals who want rapid, no-fluff summaries.
-
-Output plain sentences only — no headings, no bullet points, no markdown formatting except inline citation links in the format [text](url).`;
+- Write no more than 4 sentences of prose. If there are multiple distinct events worth highlighting, use a short bullet list (3-4 items) instead of run-on sentences.
+- Use **bold** to highlight key subjects: organization names, policy names, dollar amounts, legislation, and deadlines.
+- Lead with the biggest, most action-oriented news. Prioritize near-term, timeline-based stories over long-term background topics.
+- Include relevant inline citation links from the source text in the format [text](url).
+- Do not use headings. Use bold and lists instead of markdown headers.
+- Tone: direct and no-fluff. Your audience is climate-minded professionals who want rapid, scannable summaries.`;
 
 /**
  * Calls Gemini to distill the full cached text into a 3-4 sentence email digest summary.
@@ -136,7 +137,7 @@ function generateUnsubscribeToken(userId: string): string {
 
 // ─── Email template ───────────────────────────────────────────────────────────
 
-type ShortcutSection = { name: string; paragraph: string };
+type ShortcutSection = { name: string; icon: string; paragraph: string };
 
 /**
  * Builds the full HTML email string for a single subscriber.
@@ -147,15 +148,71 @@ function buildEmailHtml(sections: ShortcutSection[], unsubscribeUrl: string, app
   const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const logoUrl = `${appUrl}/newsdash_green.png`;
 
-  /** Converts markdown inline links [text](url) to HTML anchor tags. */
-  const renderLinks = (text: string) =>
-    text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" style="color:#8B4513;text-decoration:underline;" target="_blank" rel="noopener noreferrer">$1</a>');
+  /** Renders markdown bold, italic, ordered/unordered lists, and inline links to HTML. */
+  const renderMarkdown = (text: string): string => {
+    const applyInline = (s: string) =>
+      s
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/_(.+?)_/g, '<em>$1</em>')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" style="color:#8B4513;text-decoration:underline;" target="_blank" rel="noopener noreferrer">$1</a>');
 
-  const sectionHtml = sections.map(({ name, paragraph }, i) => `
+    const lines = text.split('\n');
+    const parts: string[] = [];
+    let ulItems: string[] = [];
+    let olItems: string[] = [];
+
+    const flushUl = () => {
+      if (!ulItems.length) return;
+      parts.push(`<ul style="margin:8px 0;padding-left:20px;color:#4A3528;">${ulItems.map(li => `<li style="margin:2px 0;font-size:14px;line-height:1.75;">${li}</li>`).join('')}</ul>`);
+      ulItems = [];
+    };
+    const flushOl = () => {
+      if (!olItems.length) return;
+      parts.push(`<ol style="margin:8px 0;padding-left:20px;color:#4A3528;">${olItems.map(li => `<li style="margin:2px 0;font-size:14px;line-height:1.75;">${li}</li>`).join('')}</ol>`);
+      olItems = [];
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) { flushUl(); flushOl(); continue; }
+      const ulMatch = trimmed.match(/^[-*]\s+(.*)/);
+      const olMatch = trimmed.match(/^\d+\.\s+(.*)/);
+      if (ulMatch) {
+        flushOl();
+        ulItems.push(applyInline(ulMatch[1]));
+      } else if (olMatch) {
+        flushUl();
+        olItems.push(applyInline(olMatch[1]));
+      } else {
+        flushUl();
+        flushOl();
+        parts.push(applyInline(trimmed));
+      }
+    }
+    flushUl();
+    flushOl();
+
+    return parts.join(' ');
+  };
+
+  const sectionHtml = sections.map(({ name, icon, paragraph }, i) => `
     <tr>
       <td style="padding:20px 36px 0;">
-        <p style="margin:0 0 6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#8B4513;">${name}</p>
-        <p style="margin:0 0 20px;font-size:14px;line-height:1.75;color:#4A3528;${i < sections.length - 1 ? 'border-bottom:1px solid #D4C4B0;' : ''}padding-bottom:20px;">${renderLinks(paragraph)}</p>
+        <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;">
+          <tr>
+            <td style="vertical-align:middle;padding-right:6px;">
+              <img src="${appUrl}${icon}" alt="" height="18" style="display:block;border-radius:3px;height:18px;width:auto;">
+            </td>
+            <td style="vertical-align:middle;">
+              <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#8B4513;">${name}</p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:0;font-size:14px;line-height:1.75;color:#4A3528;">${renderMarkdown(paragraph)}</p>
+        <p style="margin:8px 0 0;font-size:12px;padding-bottom:20px;${i < sections.length - 1 ? 'border-bottom:1px solid #D4C4B0;' : ''}">
+          <a href="${appUrl}" style="color:#8B4513;text-decoration:underline;" target="_blank" rel="noopener noreferrer">Click to dive deeper on ${name} &rarr;</a>
+        </p>
       </td>
     </tr>`).join('');
 
@@ -252,7 +309,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const snap = cacheSnapshots[i];
 
       if (!snap.exists()) {
-        sections.push({ name: shortcut.name, paragraph: 'No recent data available — open NewsDash to generate this week\'s content.' });
+        sections.push({ name: shortcut.name, icon: shortcut.icon, paragraph: 'No recent data available — open NewsDash to generate this week\'s content.' });
         continue;
       }
 
@@ -263,7 +320,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? await summarizeWithLLM(textWithCitations, shortcut.name)
         : 'No content available for this category.';
 
-      sections.push({ name: shortcut.name, paragraph });
+      sections.push({ name: shortcut.name, icon: shortcut.icon, paragraph });
     }
 
     // ── 2. Fetch all active subscribers ────────────────────────────────────

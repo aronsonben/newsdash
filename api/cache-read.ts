@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    console.log("[cache-read] Trying to read the cache.... ", );
+    // console.log("[cache-read] Trying to read the cache.... ", );
 
     const db = getDb();
 
