@@ -12,14 +12,6 @@ jobs:
   refresh-shortcuts:
     runs-on: ubuntu-latest
     steps:
-      - name: Refresh ai-innovation-daily-review
-        run: |
-          curl --fail-with-body -X POST \
-            "${{ vars.PRODUCTION_URL }}/api/refresh-shortcut" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json" \
-            -d '{"id":"ai-innovation-daily-review"}'
-
       - name: Refresh global-climate-headlines-weekly
         run: |
           curl --fail-with-body -X POST \

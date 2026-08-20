@@ -1,0 +1,21 @@
+name: Weekly Shortcut Cache Pre-Warm (TEST)
+
+on:
+  # Runs every Monday at midnight UTC — 9 hours before the weekly digest email
+  schedule:
+    - cron: '0 0 * * 1'
+
+  # Allows manual trigger from the Actions tab for testing
+  workflow_dispatch:
+
+jobs:
+  refresh-shortcuts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh massachusetts-climate-news-weekly
+        run: |
+          curl --fail-with-body -X POST \
+            "${{ vars.PRODUCTION_URL }}/api/refresh-shortcut" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"id":"massachusetts-climate-news-weekly"}'

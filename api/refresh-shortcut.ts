@@ -109,8 +109,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!apiKey) {
     return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
   }
-
-  const { id } = req.body ?? {};
+  
+  const { id, model } = req.body ?? {};
 
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: '`id` is required' });
@@ -120,6 +120,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!shortcut) {
     return res.status(400).json({ error: `Unknown shortcut id: ${id}` });
   }
+
+  const modelName: string = (typeof model === 'string' && model) ? model : 'gemini-2.5-flash';
 
   const systemInstruction = `
     You are performing web search-based research for the latest news stories related to the prompt topic.
@@ -159,7 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const response = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
+      model: modelName,
       contents: shortcut.prompt,
       config,
     });
