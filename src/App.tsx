@@ -11,6 +11,7 @@ import SavedBlocksList from './components/SavedBlocksList';
 import SaveBlockWarningModal from './components/SaveBlockWarningModal';
 import UsernamePromptModal from './components/UsernamePromptModal';
 import SignInModal from './components/SignInModal';
+import HistoryDashboard from './components/HistoryDashboard';
 import { generateStreamWithGemini} from './lib/geminiClient';
 import { apiClient, firestoreCache } from './lib/apiClient';
 import { CacheData, Shortcut, CloudSaveState, GeminiGenerateResponse, GeminiStreamResponse, SavedBlock, GroundingChunk } from './types';
@@ -106,6 +107,8 @@ export default function App() {
   const [isUsernameModalOpen, setIsUsernameModalOpen] = useState<boolean>(false);
   const [showWelcome, setShowWelcome] = useLocalStorage<boolean>("show_welcome_msg", true); // show the welcome msg for first time users
   const [anonPlaceholder, setAnonPlaceholder] = useState<string>('');
+  // View toggle
+  const [historyView, setHistoryView] = useState<boolean>(false);
   // Saved blocks
   const { 
     blocks: savedBlocks, 
@@ -663,7 +666,9 @@ export default function App() {
         authLoading={authLoading} 
         openSignInModal={() => setIsSignInModalOpen(true)}
         onSignIn={handleSignIn} 
-        onSignOut={handleSignOut} 
+        onSignOut={handleSignOut}
+        historyView={historyView}
+        onToggleHistory={() => setHistoryView(v => !v)}
       />
       <MobileShortcutTray onSelect={handleShortcutSelect} selectedId={selectedShortcut?.id} />
       <main className="flex-1 flex min-h-0">
@@ -705,23 +710,27 @@ export default function App() {
             loading={loading}
             geminiConfigured={geminiConfigured}
           />
-          <NewsDashboard 
-            data={newsData} 
-            isStreaming={isStreaming} 
-            streamingText={streamingText} 
-            onSaveToCloud={handleSaveToCloud}
-            cloudSaveState={cloudSaveState}
-            onRunAgain={onSend}
-            loading={loading}
-            isFetching={isFetching}
-            currentCacheObj={currentCacheObj}
-            currentCacheState={currentCacheState}
-            highlightedText={highlightedText}
-            setHighlightedText={handleCustomHighlight}
-            highlightedCitations={highlightedCitations}
-            storedUsername={storedUsername}
-            onSaveBlock={handleSaveBlock}
-          />
+          {historyView ? (
+            <HistoryDashboard shortcut={selectedShortcut} />
+          ) : (
+            <NewsDashboard 
+              data={newsData} 
+              isStreaming={isStreaming} 
+              streamingText={streamingText} 
+              onSaveToCloud={handleSaveToCloud}
+              cloudSaveState={cloudSaveState}
+              onRunAgain={onSend}
+              loading={loading}
+              isFetching={isFetching}
+              currentCacheObj={currentCacheObj}
+              currentCacheState={currentCacheState}
+              highlightedText={highlightedText}
+              setHighlightedText={handleCustomHighlight}
+              highlightedCitations={highlightedCitations}
+              storedUsername={storedUsername}
+              onSaveBlock={handleSaveBlock}
+            />
+          )}
           {/* Mobile saved blocks — hidden on desktop (sidebar shows them there) */}
           <div className="md:hidden mt-6">
             <SavedBlocksList

@@ -1,4 +1,4 @@
-import { CacheData, GeminiStreamResponse, GeminiGenerateResponse, SavedBlock } from 'src/types';
+import { CacheData, GeminiStreamResponse, GeminiGenerateResponse, SavedBlock, PromptStats, HistoryEntry } from 'src/types';
 import { generateStreamWithGemini } from './geminiClient';
 
 export type GenerateRequest = {
@@ -22,7 +22,7 @@ export const apiClient = {
   async generate(req: GenerateRequest): Promise<GeminiStreamResponse> {
     // ── Local dev: call Gemini directly (VITE_GEMINI_API_KEY stays on your machine) ──
     if (import.meta.env.DEV) {
-      console.log('[dev] Calling Gemini directly with prompt:', req.prompt);
+      // console.log('[dev] Calling Gemini directly with prompt:', req.prompt);
       return generateStreamWithGemini({
         prompt: req.prompt,
         temperature: req.temperature ?? 0.7,
@@ -156,6 +156,34 @@ export const blocksClient = {
       return false;
     }
     return true;
+  },
+};
+
+// ─── Stats & history (via Vercel serverless functions) ────────────────────────
+
+export const statsClient = {
+  /** Reads the aggregate PromptStats doc for a given shortcut */
+  async readStats(promptId: string): Promise<PromptStats | null> {
+    const res = await fetch(`/api/stats-read?promptId=${encodeURIComponent(promptId)}`);
+    if (!res.ok) {
+      console.error('[statsClient.readStats] API error', res.status);
+      return null;
+    }
+    const data = await res.json();
+    return data.status === 'ok' ? (data.stats as PromptStats) : null;
+  },
+
+  /** Reads the last N history entries for a given shortcut */
+  async readHistory(promptId: string, historyLimit = 10): Promise<HistoryEntry[]> {
+    const res = await fetch(
+      `/api/history-read?promptId=${encodeURIComponent(promptId)}&limit=${historyLimit}`
+    );
+    if (!res.ok) {
+      console.error('[statsClient.readHistory] API error', res.status);
+      return [];
+    }
+    const data = await res.json();
+    return (data.entries ?? []) as HistoryEntry[];
   },
 };
 

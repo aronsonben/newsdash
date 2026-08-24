@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import admin from 'firebase-admin';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, Firestore, doc, setDoc, updateDoc, addDoc, increment, arrayUnion, Timestamp } from "firebase/firestore";
-import { CacheData, CitationSummary, HistoryEntry, GroundingChunk, GroundingSupport } from '../src/types';
+import { CacheData, CitationSummary, HistoryEntry, GroundingChunk, GroundingSupport, PromptStats } from '../src/types';
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_BROWSER_API_KEY,
@@ -126,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await setDoc(promptCacheRef, cacheData);
 
     // ── History + stats writes are fire-and-forget; a failure here does not fail the cache write
-    writeHistory(db, promptId, data).catch((err) => {
+    await writeHistory(db, promptId, data).catch((err) => {
       console.error('[cache-write] History/stats write error:', err);
     });
 
@@ -139,6 +139,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 /** Appends a HistoryEntry subcollection doc and updates the prompt_stats aggregate */
 async function writeHistory(db: Firestore, promptId: string, data: any): Promise<void> {
+  console.log("[cache-write] Writing to cache via the cache-write endpoint!!", promptId);
+
+  // First get the database reference objects
+  const historyRef = collection(db, `prompt_cache/${promptId}/history`);
+  const statsRef = doc(db, 'prompt_stats', promptId);
+
+  // Get some of the more straightforward data settled here
   const searchQueries: string[] = data.searchQueries ?? [];
   const textHeadings = extractHeadings(data.text);
   const citations = buildCitationSummaries(
@@ -146,7 +153,10 @@ async function writeHistory(db: Firestore, promptId: string, data: any): Promise
     data.groundingSupports ?? [],
     data.text.length
   );
+  
+  console.log("[cache-write] Succeeded building textHeadings & citaitons: ", textHeadings, " ---- ", citations);
 
+  // Instantiate the history entry to be saved
   const historyEntry: HistoryEntry = {
     capturedAt: Timestamp.now(),
     promptId,
@@ -155,9 +165,7 @@ async function writeHistory(db: Firestore, promptId: string, data: any): Promise
     textHeadings,
   };
 
-  const historyRef = collection(db, 'prompt_cache', promptId, 'history');
-  const statsRef = doc(db, 'prompt_stats', promptId);
-
+  // ----
   // Build the stats update object with dynamic dot-notation map keys
   const statsUpdate: Record<string, any> = {
     promptId,
@@ -166,8 +174,8 @@ async function writeHistory(db: Firestore, promptId: string, data: any): Promise
     ...(searchQueries.length > 0 ? { allSearchQueries: arrayUnion(...searchQueries) } : {}),
   };
 
-  for (const heading of textHeadings) {
-    statsUpdate[`headingFrequency.${toFieldKey(heading)}`] = increment(1);
+  if (textHeadings.length > 0) {
+    statsUpdate['allHeadings'] = arrayUnion(...textHeadings);
   }
   for (const citation of citations) {
     const key = toFieldKey(citation.title);
@@ -176,16 +184,26 @@ async function writeHistory(db: Firestore, promptId: string, data: any): Promise
     statsUpdate[`citationGenerationCount.${key}`] = increment(1);
   }
 
-  await addDoc(historyRef, historyEntry);
-
-  // updateDoc fails if the stats doc doesn't yet exist — initialize it on first run
+  console.log("[cache-write] Adding history entry... ");
   try {
+    await addDoc(historyRef, historyEntry);
+  } catch (e: any) {
+    console.log("[cache-write] failed to add new history doc: ", e);
+    throw e;
+  }
+  console.log("[cache-write] Returned from history entry...");
+
+  // updateDoc supports dot-notation as nested paths; setDoc treats dots as literal field names (invalid in Firestore)
+  try {
+    console.log("[cache-write] Upserting stats doc");
     await updateDoc(statsRef, statsUpdate);
   } catch (e: any) {
     if (e?.code === 'not-found') {
+      console.log("[cache-write] Stats doc not found, creating for first time");
       await setDoc(statsRef, { promptId });
       await updateDoc(statsRef, statsUpdate);
     } else {
+      console.log("[cache-write] Writing stats to cache failed...", e);
       throw e;
     }
   }

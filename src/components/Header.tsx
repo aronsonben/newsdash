@@ -37,9 +37,11 @@ interface HeaderProps {
   openSignInModal: () => void;
   onSignIn: (mode: string) => void;
   onSignOut: () => void;
+  historyView: boolean;
+  onToggleHistory: () => void;
 }
 
-export default function Header({ isDark, toggleTheme, apiStatus, user, displayName, authLoading, openSignInModal, onSignIn, onSignOut }: HeaderProps) {
+export default function Header({ isDark, toggleTheme, apiStatus, user, displayName, authLoading, openSignInModal, onSignIn, onSignOut, historyView, onToggleHistory }: HeaderProps) {
   const [showAbout, setShowAbout] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   return (
@@ -54,6 +56,22 @@ export default function Header({ isDark, toggleTheme, apiStatus, user, displayNa
     >
       <NewsDashLogo />
       <div className="gap-3 items-center flex">
+        <button
+          onClick={onToggleHistory}
+          className="px-3 py-2 rounded-lg text-white border-0 transition-colors duration-200 font-medium text-sm"
+          style={{
+            backgroundColor: historyView ? 'rgb(var(--accent))' : 'rgb(var(--button-primary))'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = historyView ? 'rgb(var(--accent))' : 'rgb(var(--button-primary-hover))';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = historyView ? 'rgb(var(--accent))' : 'rgb(var(--button-primary))';
+          }}
+          title={historyView ? 'Back to dashboard' : 'View history & stats'}
+        >
+          📊
+        </button>
         <button
           onClick={toggleTheme}
           className="px-3 py-2 rounded-lg text-white border-0 transition-colors duration-200 font-medium"
