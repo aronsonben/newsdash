@@ -62,14 +62,14 @@ export function useAuth() {
   /** Function to handle the sign in with magic link flow. Returns true if successfully logged in */
   const checkEmailLinkSignIn = async (url: string, email: string): Promise<boolean> => {
     if (!isSignInWithEmailLink(auth, url)) {
-      console.log("[useAuth] is NOT a email link sign in");
+      // console.log("[useAuth] is NOT a email link sign in");
       return false;
     }
 
-    console.log("[useAuth] Confirmed we found a sign in with email link");
+    // console.log("[useAuth] Confirmed we found a sign in with email link");
 
     if (!email) {
-      console.error("Invalid sign in with link. Try again.");
+      // console.error("Invalid sign in with link. Try again.");
       return false;
     }
 

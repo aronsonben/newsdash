@@ -54,7 +54,7 @@ export function useSavedBlocks(userId: string | null) {
     // console.log("[useSavedBlocks] A user is signed in, fetching saved blocks...");
     getUserBlocks(userId)
       .then(data => {
-        console.log("[useSavedBlocks][effect] Fetched (hydrated) blocks from firestore: ", data);
+        // console.log("[useSavedBlocks][effect] Fetched (hydrated) blocks from firestore: ", data);
         if (!data) return;
         setBlocks(data);
       })

@@ -190,6 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         searchEntryPoint:  finalGroundingMetadata?.searchEntryPoint?.renderedContent ?? undefined,
       },
       updatedAt: Timestamp.now(),
+      savedBy: "WeeklyRefreshBot"
     };
 
     const db = getDb();

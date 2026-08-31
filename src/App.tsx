@@ -268,6 +268,34 @@ export default function App() {
 
   // ––– HANDLER & AUX FUNCTIONS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
+  /**
+   * Background-fetches Firestore cache for all non-default shortcuts and hydrates
+   * promptCache (localStorage) so switching between shortcuts is instant.
+   * Does not touch any UI state — runs silently after the critical render.
+   */
+  const prefetchAllShortcuts = async () => {
+    const otherShortcuts = CLIMATE_SHORTCUTS.filter(s => s.id !== DEFAULT_SHORTCUT.id);
+    await Promise.allSettled(
+      otherShortcuts.map(async (shortcut) => {
+        // Skip if already in localStorage AND still fresh (<24h) — no DB call needed
+        const cachedEntry = promptCache.find(e => e.id === shortcut.id);
+        const alreadyCached = cachedEntry && getCacheState(cachedEntry) === 'fresh';
+        if (alreadyCached) return;
+        try {
+          const result = await firestoreCache.read(shortcut.id);
+          if (result.status === 'fresh' || result.status === 'stale') {
+            setPromptCache(prev => {
+              // Guard against a race where two calls resolve simultaneously
+              if (prev.some(e => e.id === shortcut.id)) return prev;
+              return [...prev, result.data];
+            });
+          }
+        } catch {
+          // Silent fail — prefetch is best-effort, does not affect the user
+        }
+      })
+    );
+  };
 
   /**
    * Saves a block of text to localStorage for the user
@@ -341,34 +369,6 @@ export default function App() {
   };
 
   /**
-   * Background-fetches Firestore cache for all non-default shortcuts and hydrates
-   * promptCache (localStorage) so switching between shortcuts is instant.
-   * Does not touch any UI state — runs silently after the critical render.
-   */
-  const prefetchAllShortcuts = async () => {
-    const otherShortcuts = CLIMATE_SHORTCUTS.filter(s => s.id !== DEFAULT_SHORTCUT.id);
-    await Promise.allSettled(
-      otherShortcuts.map(async (shortcut) => {
-        // Skip if already in localStorage — no DB call needed
-        const alreadyCached = promptCache.find(e => e.id === shortcut.id);
-        if (alreadyCached) return;
-        try {
-          const result = await firestoreCache.read(shortcut.id);
-          if (result.status === 'fresh' || result.status === 'stale') {
-            setPromptCache(prev => {
-              // Guard against a race where two calls resolve simultaneously
-              if (prev.some(e => e.id === shortcut.id)) return prev;
-              return [...prev, result.data];
-            });
-          }
-        } catch {
-          // Silent fail — prefetch is best-effort, does not affect the user
-        }
-      })
-    );
-  };
-
-  /**
    * Handles the selection of a shortcut from the sidebar by trying 
    * to load any stored response data for the given shortcut
    * @param shortcut - the selected shortcut
@@ -404,7 +404,7 @@ export default function App() {
 
     // If the cache object was found in localStorage, show it immediately (fresh or stale).
     if (cachedObj) {
-      console.log(`[handleShortcutSelect] Found a cached object in localStorage for ${selectedShortcut.id} `, cachedObj);
+      // console.log(`[handleShortcutSelect] Found a cached object in localStorage for ${selectedShortcut.id} `, cachedObj);
       const cacheObjState = getCacheState(cachedObj);
       setNewsData(cachedObj.data);
       setCurrentCacheObj(cachedObj);
