@@ -277,18 +277,11 @@ export default function App() {
     const otherShortcuts = CLIMATE_SHORTCUTS.filter(s => s.id !== DEFAULT_SHORTCUT.id);
     await Promise.allSettled(
       otherShortcuts.map(async (shortcut) => {
-        // Skip if already in localStorage AND still fresh (<24h) — no DB call needed
-        const cachedEntry = promptCache.find(e => e.id === shortcut.id);
-        const alreadyCached = cachedEntry && getCacheState(cachedEntry) === 'fresh';
-        if (alreadyCached) return;
         try {
           const result = await firestoreCache.read(shortcut.id);
-          if (result.status === 'fresh' || result.status === 'stale') {
-            setPromptCache(prev => {
-              // Guard against a race where two calls resolve simultaneously
-              if (prev.some(e => e.id === shortcut.id)) return prev;
-              return [...prev, result.data];
-            });
+          // Always overwrite the local entry so writes from other users/sessions aren't missed
+          if (result.status !== 'miss') {
+            setPromptCache(prev => [result.data, ...prev.filter(e => e.id !== shortcut.id)]);
           }
         } catch {
           // Silent fail — prefetch is best-effort, does not affect the user

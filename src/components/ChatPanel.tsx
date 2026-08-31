@@ -65,7 +65,7 @@ function ChatPanel({ shortcut, onSend, loading, geminiConfigured }: ChatPanelPro
         />
         {/* Edit and Send buttons */}
         <div className="flex justify-end gap-2">
-          <button
+          {/* <button
             disabled
             className="px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 shadow-sm min-h-10 cursor-not-allowed"
             style={{
@@ -75,7 +75,7 @@ function ChatPanel({ shortcut, onSend, loading, geminiConfigured }: ChatPanelPro
             title="Prompt editing is not available at this time"
           >
             Edit
-          </button>
+          </button> */}
           <button
             onClick={() => onSend(true)}
             disabled={!canSend}
