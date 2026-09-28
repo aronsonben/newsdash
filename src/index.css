@@ -13,6 +13,7 @@
   --bg-tertiary: 232 226 219;
   --text-primary: 45 27 15; /* Very dark brown */
   --text-secondary: 74 53 40;
+  --text-markdown: 74 53 40;
   --text-muted: 107 78 61;
   --border: 212 196 176;
   --accent: 139 69 19; /* Saddle brown */
@@ -42,6 +43,7 @@
   --bg-tertiary: 35 38 35;
   --text-primary: 199 209 205;
   --text-secondary: 155 165 159;
+  --text-markdown: 155 165 159;
   --text-muted: 107 122 114;
   --border: 42 48 41;
   --accent: 127 179 163;
@@ -76,6 +78,7 @@
   /* Text colors */
   --text-primary: 243 246 242;   /* #F3F6F2 off-white */
   --text-secondary: 183 194 177; /* #B7C2B1 muted light green-grey */
+  --text-markdown: 205 214 199;  /* #CDD6C7 brigher sage-tinted white */
   --text-muted: 139 153 133;     /* #8B9985 muted olive-grey */
 
   /* Borders and shadows */
@@ -179,7 +182,7 @@
 /* Paragraphs */
 .markdown-content p {
   margin-bottom: 1rem;
-  color: rgb(var(--text-secondary));
+  color: rgb(var(--text-markdown));
 }
 
 /* Lists */

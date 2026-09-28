@@ -82,6 +82,28 @@ export default function NewsDashboard({
     }
   };
 
+  const [copyState, setCopyState] = React.useState<'idle' | 'copied' | 'error'>('idle');
+  const copyTimeoutRef = React.useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(copyTimeoutRef.current), []);
+
+  /**
+   * Copies the full response markdown (with citations) to the user's clipboard
+   * and briefly swaps the button label to confirm the result.
+   */
+  const handleCopyMarkdown = async () => {
+    if (!data?.textWithCitations) return;
+    try {
+      await navigator.clipboard.writeText(data.textWithCitations);
+      setCopyState('copied');
+    } catch (err) {
+      console.error('[NewsDashboard] Failed to copy markdown', err);
+      setCopyState('error');
+    }
+    window.clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = window.setTimeout(() => setCopyState('idle'), 2000);
+  };
+
   const showActionBar = (currentCacheObj || (!!data && !isStreaming));
 
   // savedBy is the durable discriminator: present = originated from Firestore, absent = locally run
@@ -329,6 +351,15 @@ export default function NewsDashboard({
             )}
           </span>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyMarkdown}
+              disabled={!data?.textWithCitations}
+              className="px-3 py-1 text-xs font-medium rounded transition-colors duration-200 border bg-theme-button-outlined border-theme-button-outlined text-theme-button-secondary hover:cursor-pointer enabled:hover:bg-[rgb(var(--button-primary))]/20 enabled:hover:text-[rgb(var(--text-primary))] enabled:hover:border-[rgb(var(--border))] disabled:opacity-50 disabled:cursor-not-allowed"
+              title={'Copy the full response as Markdown'}
+              aria-live="polite"
+            >
+              {copyState === 'copied' ? '✓ Copied!' : copyState === 'error' ? 'Copy failed' : 'Copy as Markdown'}
+            </button>
             <button
               onClick={() => onRunAgain(true)}
               disabled={loading}

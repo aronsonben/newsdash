@@ -12,49 +12,99 @@ if (!import.meta.env.DEV) {
   apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ?? (import.meta.env as any).GEMINI_API_KEY;
 }
 
+/** Inserts citation links at the end of each grounded sentence, located by matching segment text. */
 function addCitations(text: string, groundingMetadata?: GroundingMetadata): string {
-    if (!groundingMetadata?.groundingSupports || !groundingMetadata?.groundingChunks) {
-      return text;
+  if (!groundingMetadata?.groundingSupports || !groundingMetadata?.groundingChunks) {
+    return text;
+  }
+
+  const chunks = groundingMetadata.groundingChunks;
+  const supports = [...groundingMetadata.groundingSupports].sort(
+    (a, b) => (a.segment?.startIndex ?? 0) - (b.segment?.startIndex ?? 0)
+  );
+
+  const insertions = new Map<number, string[]>();
+  let searchFrom = 0;
+
+  for (const support of supports) {
+    const segText = support.segment?.text;
+    if (!segText || !support.groundingChunkIndices?.length) continue;
+
+    let start = text.indexOf(segText, searchFrom);
+    if (start === -1) start = text.indexOf(segText);
+    if (start === -1) continue;
+    searchFrom = start;
+
+    // Never cite inside a heading line
+    const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+    if (/^\s*#{1,6}\s/.test(text.slice(lineStart, start + 1))) continue;
+
+    let end = start + segText.length;
+    while (end > start && /\s/.test(text[end - 1])) end--;
+
+    // Extend to the end of the sentence if the segment stops mid-sentence
+    const closers = `["'”’)\\]*_]*`;
+    if (!new RegExp(`[.!?]${closers}$`).test(text.slice(start, end))) {
+      const nl = text.indexOf('\n', end);
+      const lineEnd = nl === -1 ? text.length : nl;
+      const m = new RegExp(`[.!?]${closers}(?=\\s|$)`).exec(text.slice(end, lineEnd));
+      end = m ? end + m.index + m[0].length : lineEnd;
     }
 
-    const supports = groundingMetadata.groundingSupports;
-    const chunks = groundingMetadata.groundingChunks;
-    let modifiedText = text;
+    const links = support.groundingChunkIndices
+      .map((i) => {
+        const uri = chunks[i]?.web?.uri;
+        return uri ? `[${i + 1}](${uri})` : null;
+      })
+      .filter((l): l is string => l !== null);
+    if (links.length === 0) continue;
 
-    // Sort supports by end_index in descending order to avoid shifting issues when inserting.
-    const sortedSupports = [...supports].sort(
-      (a: GroundingSupport, b: GroundingSupport) => 
-        (b.segment?.endIndex ?? 0) - (a.segment?.endIndex ?? 0)
-    );
+    const existing = insertions.get(end) ?? [];
+    for (const l of links) if (!existing.includes(l)) existing.push(l);
+    insertions.set(end, existing);
+  }
 
-    for (const support of sortedSupports) {
-      const endIndex = support.segment?.endIndex;
-      if (endIndex === undefined || !support.groundingChunkIndices?.length) {
-        continue;
-      }
+  let result = text;
+  for (const pos of [...insertions.keys()].sort((a, b) => b - a)) {
+    result = result.slice(0, pos) + ` ${insertions.get(pos)!.join(' ')}` + result.slice(pos);
+  }
+  return result;
+}
 
-      const citationLinks = support.groundingChunkIndices
-        .map((i: number) => {
-          const uri = chunks[i]?.web?.uri;
-          if (uri) {
-            return `[${i + 1}](${uri})`;
-          }
-          return null;
-        })
-        .filter((link): link is string => link !== null);
+// ─── Heading emoji helpers ────────────────────────────────────────────────────
 
-      if (citationLinks.length > 0) {
-        // Advance to the next word boundary so citations aren't inserted mid-word
-        let insertAt = endIndex;
-        while (insertAt < modifiedText.length && /\S/.test(modifiedText[insertAt - 1]) && /\S/.test(modifiedText[insertAt])) {
-          insertAt++;
-        }
-        const citationString = ` ${citationLinks.join(", ")}`;
-        modifiedText = modifiedText.slice(0, insertAt) + citationString + modifiedText.slice(insertAt);
-      }
-    }
+const HEADING_PREFIX = /^\s{0,3}#{1,6}[ \t]+/;
+const LEADING_EMOJIS = /^(?:[\p{Extended_Pictographic}\p{Emoji_Modifier}\uFE0F\u200D]+[ \t]*)+/u;
 
-    return modifiedText;
+/** Removes leading emojis from Markdown headings so citation offsets aren't skewed; returns them in heading order. */
+function stripHeadingEmojis(text: string): { stripped: string; emojis: string[] } {
+  const emojis: string[] = [];
+  const stripped = text
+    .split('\n')
+    .map((line) => {
+      const prefix = HEADING_PREFIX.exec(line);
+      if (!prefix) return line;
+      const rest = line.slice(prefix[0].length);
+      const emoji = LEADING_EMOJIS.exec(rest);
+      emojis.push(emoji ? emoji[0] : '');
+      return prefix[0] + (emoji ? rest.slice(emoji[0].length) : rest);
+    })
+    .join('\n');
+  return { stripped, emojis };
+}
+
+/** Puts the emojis removed by stripHeadingEmojis back into their headings, matched by heading order. */
+function restoreHeadingEmojis(text: string, emojis: string[]): string {
+  let i = 0;
+  return text
+    .split('\n')
+    .map((line) => {
+      const prefix = HEADING_PREFIX.exec(line);
+      if (!prefix) return line;
+      const emoji = emojis[i++] ?? '';
+      return prefix[0] + emoji + line.slice(prefix[0].length);
+    })
+    .join('\n');
 }
 
 export async function generateWithGemini(req: GeminiGenerateRequest): Promise<GeminiGenerateResponse> {
