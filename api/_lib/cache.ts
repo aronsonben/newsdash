@@ -1,6 +1,6 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { getAdminDb } from './_admin';
-import type { GeneratedNews, GroundingChunk, GroundingSupport } from './_lib/gemini';
+import { getAdminDb } from './admin.js';
+import type { GeneratedNews, GroundingChunk, GroundingSupport } from './gemini.js';
 
 interface CitationSummary {
   title: string;

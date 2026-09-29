@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHmac } from 'crypto';
-import { getAdminDb } from './_admin';
-import { requireUser, safeEqual } from './_auth';
+import { getAdminDb } from './_lib/admin.js';
+import { requireUser, safeEqual } from './_lib/auth.js';
 
 /** Escapes text for safe interpolation into HTML. */
 function escapeHtml(s: string): string {

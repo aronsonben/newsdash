@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Timestamp } from 'firebase-admin/firestore';
-import { getAdminDb } from './_admin';
-import { isShortcutId } from './_shortcuts';
-import { serializeTimestamp } from './_cache';
+import { getAdminDb } from './_lib/admin.js';
+import { isShortcutId } from './_lib/shortcuts.js';
+import { serializeTimestamp } from './_lib/cache.js';
 
 const FRESH_TTL_MS = 24 * 60 * 60 * 1000;
 

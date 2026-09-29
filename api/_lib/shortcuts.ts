@@ -1,4 +1,4 @@
-import shortcutsJson from '../shortcuts.json' with { type: 'json' };
+import shortcutsJson from '../../shortcuts.json' with { type: 'json' };
 
 export interface ServerShortcut {
   id: string;

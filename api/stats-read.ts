@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getAdminDb } from './_admin';
-import { isShortcutId } from './_shortcuts';
+import { getAdminDb } from './_lib/admin.js';
+import { isShortcutId } from './_lib/shortcuts.js';
 
 /** Reads the aggregate prompt_stats document for a given promptId */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
