@@ -22,7 +22,7 @@ A modern single page application built with Vite, React, and TypeScript. Powered
    VITE_GEMINI_API_KEY=your_api_key_here
    ```
 
-The Gemini client uses the **gemini-3.1-flash** model with Google Search grounding enabled, allowing it to search the web and provide up-to-date information with citations.
+The Gemini client uses the **gemini-3.1-flash-lite** model with Google Search grounding enabled, allowing it to search the web and provide up-to-date information with citations.
 
 ## Setup
 

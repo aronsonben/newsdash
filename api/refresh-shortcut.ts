@@ -4,8 +4,6 @@ import { getShortcut } from './_lib/shortcuts';
 import { generateForShortcut } from './_lib/gemini';
 import { writeCacheEntry } from './_lib/cache';
 
-export const config = { maxDuration: 60 };
-
 /**
  * Cron-triggered: regenerates one shortcut and writes it to prompt_cache/{id},
  * pre-warming the cache before the weekly digest. No cooldown; the cron always refreshes.

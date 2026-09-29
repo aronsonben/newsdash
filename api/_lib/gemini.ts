@@ -38,7 +38,7 @@ export interface GeneratedNews {
 }
 
 // Server-controlled only; clients can never choose the model.
-const DEFAULT_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash';
+const DEFAULT_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite';
 
 // ─── Citation helper ──────────────────────────────────────────────────────────
 

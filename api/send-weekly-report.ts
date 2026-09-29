@@ -98,7 +98,7 @@ async function summarizeWithLLM(textWithCitations: string, shortcutName: string)
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: `Summarize the following ${shortcutName} report:\n\n${textWithCitations}`,
       config: { systemInstruction: CLIMATE_NEWS_SYSTEM_INSTRUCTION },
     });
@@ -261,8 +261,7 @@ function buildEmailHtml(sections: ShortcutSection[], unsubscribeUrl: string, app
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
-// 4 sequential Gemini calls at ~15–30s each requires headroom beyond the default 10s limit
-export const config = { maxDuration: 300 };
+// maxDuration (300s) is set in vercel.json: 4 sequential Gemini calls need more than the default limit
 
 /**
  * Triggered weekly by a GitHub Actions cron job.

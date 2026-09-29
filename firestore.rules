@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Profile: owner may read (AccountModal toggle state). All writes go through
+    // the API routes using the Admin SDK, which bypasses these rules.
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Saved blocks: owner-only, with shape and size validation on writes.
+    match /users/{userId}/saved_blocks/{blockId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['id', 'title', 'text', 'citations', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['id', 'title', 'text', 'citations', 'createdAt', 'updatedAt'])
+        && request.resource.data.id == blockId
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 20000
+        && request.resource.data.citations is list
+        && request.resource.data.citations.size() <= 50
+        && request.resource.data.createdAt is number
+        && request.resource.data.updatedAt is number;
+    }
+
+    // Everything else (prompt_cache, its history, prompt_stats, email_subscriptions,
+    // generation_locks, ...) is server-only via the Admin SDK.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

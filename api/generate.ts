@@ -7,8 +7,6 @@ import { generateForShortcut } from './_lib/gemini';
 import { writeCacheEntry, serializeTimestamp } from './_lib/cache';
 import { sanitizeDisplayName } from './_lib/validate';
 
-export const config = { maxDuration: 60 };
-
 // TODO: this cooldown hour env var has not been defined yet, will always default to 6 (9/29/26)
 const COOLDOWN_MS = (Number(process.env.GENERATE_COOLDOWN_HOURS) || 6) * 60 * 60 * 1000;
 // Longer than maxDuration so a crashed run's lease still expires on its own.
