@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHmac } from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { Resend } from 'resend';
-import { getAdminDb } from './_lib/admin';
-import { requireCron } from './_lib/auth';
+import { getAdminDb } from './admin';
+import { requireCron } from './auth';
 
 /** Escapes text for safe interpolation into HTML. */
 function escapeHtml(s: string): string {

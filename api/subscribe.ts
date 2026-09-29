@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getAdminDb } from './_lib/admin';
-import { requireUser } from './_lib/auth';
+import { getAdminDb } from './admin';
+import { requireUser } from './auth';
 
 /**
  * Subscribes the signed-in user to the weekly email digest.

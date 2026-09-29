@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireCron } from './_lib/auth';
-import { getShortcut } from './_lib/shortcuts';
-import { generateForShortcut } from './_lib/gemini';
-import { writeCacheEntry } from './_lib/cache';
+import { requireCron } from './auth';
+import { getShortcut } from './shortcuts';
+import { generateForShortcut } from './gemini';
+import { writeCacheEntry } from './cache';
 
 /**
  * Cron-triggered: regenerates one shortcut and writes it to prompt_cache/{id},
