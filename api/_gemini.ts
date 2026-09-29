@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import type { ServerShortcut } from './shortcuts';
+import type { ServerShortcut } from './_shortcuts';
 
 // ─── Types (mirrored from geminiClient.ts to avoid browser imports) ───────────
 

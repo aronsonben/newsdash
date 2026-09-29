@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getAdminAuth } from './admin';
+import { getAdminAuth } from './_admin';
 
 export interface AuthedUser {
   uid: string;

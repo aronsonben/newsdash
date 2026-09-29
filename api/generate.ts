@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Timestamp } from 'firebase-admin/firestore';
-import { getAdminDb } from './admin';
-import { requireUser } from './auth';
-import { getShortcut } from './shortcuts';
-import { generateForShortcut } from './gemini';
-import { writeCacheEntry, serializeTimestamp } from './cache';
+import { getAdminDb } from './_admin';
+import { requireUser } from './_auth';
+import { getShortcut } from './_shortcuts';
+import { generateForShortcut } from './_gemini';
+import { writeCacheEntry, serializeTimestamp } from './_cache';
 import { sanitizeDisplayName } from './validate';
 
 // TODO: this cooldown hour env var has not been defined yet, will always default to 6 (9/29/26)
