@@ -73,7 +73,14 @@ export type GeminiGenerateResponse = {
   searchEntryPoint?: string;
   raw?: any;
   error?: any;
+  // Set by /api/generate
+  cached?: boolean;
+  updatedAt?: SerializedTimestamp;
+  savedBy?: string;
 };
+
+/** Firestore Timestamp as serialized over JSON / localStorage. */
+export type SerializedTimestamp = { seconds: number; nanoseconds: number };
 
 
 // ––– Cache Types ––––––––––––––––––––––––––––––
@@ -92,7 +99,7 @@ export interface CacheStorage {
 export interface CacheData {
   id: string;
   data: GeminiGenerateResponse;
-  updatedAt: Timestamp;
+  updatedAt: Timestamp | SerializedTimestamp;
   savedBy?: string;
 }
 
@@ -164,8 +171,6 @@ export type EmailSubscription = {
 };
 
 // ––– Other Types ––––––––––––––––––––––––––––––
-
-export type CloudSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 export type NewsItem = {
   source: string;

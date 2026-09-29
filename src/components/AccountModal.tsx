@@ -3,7 +3,7 @@ import type { User } from 'firebase/auth';
 import Modal from './Modal';
 import { useLocalStorage } from '../services/useLocalStorage';
 import { getUserProfile } from '../lib/firestore';
-import { convertMillisToTimestamp } from '../lib/firestoreMigrations';
+import { auth } from '../lib/auth';
 
 interface AccountModalProps {
   user: User;
@@ -24,8 +24,6 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
   const [weeklyReport, setWeeklyReport] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [subscribeLoading, setSubscribeLoading] = useState(false);
-  const [testReportStatus, setTestReportStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
-  const [migrationStatus, setMigrationStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [showDigestTooltip, setShowDigestTooltip] = useState(false);
 
   // Load current subscription status from the users/{uid} Firestore document on open.
@@ -55,44 +53,21 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
   };
 
   /**
-   * Dev-only helper that manually triggers the /api/send-weekly-report endpoint
-   * using the VITE_CRON_SECRET env var, so the weekly email can be tested
-   * locally without waiting for the GitHub Actions cron job.
-   */
-  const handleTestWeeklyReport = async () => {
-    setTestReportStatus('loading');
-    try {
-      const secret = import.meta.env.VITE_CRON_SECRET as string | undefined;
-      const res = await fetch('/api/send-weekly-report', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${secret ?? ''}`,
-        },
-      });
-      setTestReportStatus(res.ok ? 'ok' : 'error');
-    } catch {
-      setTestReportStatus('error');
-    }
-  };
-
-  /**
    * Calls the subscribe or unsubscribe API endpoint when the user toggles
    * the weekly digest opt-in, then updates local UI state on success.
+   * The server identifies the user from the ID token, not the request body.
    */
   const handleToggleWeeklyReport = async () => {
     const newValue = !weeklyReport;
     setSubscribeLoading(true);
     try {
-      const endpoint = newValue ? '/api/subscribe' : '/api/unsubscribe';
-      const body = newValue
-        ? { userId: user.uid, email: user.email }
-        : { userId: user.uid };
-      await fetch(endpoint, {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Not signed in');
+      const res = await fetch(newValue ? '/api/subscribe' : '/api/unsubscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
       setWeeklyReport(newValue);
     } catch (err) {
       console.error('[AccountModal] Failed to update subscription:', err);
@@ -221,43 +196,6 @@ export default function AccountModal({ user, onSignOut, onClose }: AccountModalP
       >
         Sign out
       </button>
-      {import.meta.env.DEV && (
-        <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgb(var(--border))' }}>
-          <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: 'rgb(var(--text-muted))' }}>Firebase Migrations</p>
-          <button
-            onClick={async () => {
-              setMigrationStatus('loading');
-              try {
-                await convertMillisToTimestamp();
-                setMigrationStatus('ok');
-              } catch {
-                setMigrationStatus('error');
-              }
-            }}
-            disabled={migrationStatus === 'loading'}
-            className="w-full px-4 py-2 rounded-lg border text-sm font-medium transition-colors duration-200 disabled:opacity-50"
-            style={{ borderColor: 'rgb(var(--border))', color: 'rgb(var(--text-secondary))' }}
-          >
-            {migrationStatus === 'loading' && 'Running…'}
-            {migrationStatus === 'ok' && 'Migration complete — check console'}
-            {migrationStatus === 'error' && 'Migration failed — check console'}
-            {migrationStatus === 'idle' && 'Convert updatedAt millis → Timestamp'}
-          </button>
-        </div>
-      )}
-      {import.meta.env.DEV && (
-        <button
-          onClick={handleTestWeeklyReport}
-          disabled={testReportStatus === 'loading'}
-          className="w-full mt-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors duration-200 disabled:opacity-50"
-          style={{ borderColor: 'rgb(var(--border))', color: 'rgb(var(--text-secondary))' }}
-        >
-          {testReportStatus === 'loading' && 'Sending…'}
-          {testReportStatus === 'ok' && 'Report sent!'}
-          {testReportStatus === 'error' && 'Failed — check console'}
-          {testReportStatus === 'idle' && 'Test Weekly Report (dev)'}
-        </button>
-      )}
     </Modal>
   );
 }

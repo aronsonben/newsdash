@@ -1,13 +1,14 @@
 # NewsDash
 
-A modern single page application built with Vite, React, and TypeScript. Powered by Google Gemini 2.5 Flash with Google Search grounding for AI-enhanced news discovery.
+A modern single page application built with Vite, React, and TypeScript. Powered by Google Gemini 3.1 Flash with Google Search grounding for AI-enhanced news discovery.
 
 ## Features
 
 - Vite + React + TypeScript
 - React Router for SPA routing
 - ESLint + Prettier configured for TS/React
-- **Google Gemini 2.0 Flash with Google Search grounding** for real-time web-grounded AI responses
+- **Google Gemini 3.1 Flash with Google Search grounding** for real-time web-grounded AI responses
+- Vercel for hosting, deployment & serverless functions
 - Typed API client with environment-based configuration
 - Minimal, clean UI with a header and chat panel
 
@@ -21,7 +22,7 @@ A modern single page application built with Vite, React, and TypeScript. Powered
    VITE_GEMINI_API_KEY=your_api_key_here
    ```
 
-The Gemini client uses the **gemini-2.5-flash** model with Google Search grounding enabled, allowing it to search the web and provide up-to-date information with citations.
+The Gemini client uses the **gemini-3.1-flash** model with Google Search grounding enabled, allowing it to search the web and provide up-to-date information with citations.
 
 ## Setup
 

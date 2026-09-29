@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
-import { GeminiGenerateResponse, GroundingChunk, CloudSaveState, NewsItem, CacheData, Shortcut, BlockSegment, SavedBlock } from 'src/types';
+import { GeminiGenerateResponse, GroundingChunk, NewsItem, CacheData, Shortcut, BlockSegment, SavedBlock } from 'src/types';
 import { FRESH_TTL_MS, SEGMENT_COLORS } from '../constants';
 import { getCacheState, segmentMarkdownByHeaders, toTimestampMillis } from '../lib/utils';
 
@@ -24,8 +24,6 @@ interface NewsDashboardProps {
   data: GeminiGenerateResponse | null;
   isStreaming: boolean; 
   streamingText: string; 
-  onSaveToCloud: () => void; 
-  cloudSaveState: CloudSaveState;
   loading: boolean;
   isFetching: boolean;
   onRunAgain: (forceRefresh?: boolean) => void; 
@@ -42,8 +40,6 @@ export default function NewsDashboard({
   data, 
   isStreaming, 
   streamingText, 
-  onSaveToCloud, 
-  cloudSaveState = 'idle', 
   loading, 
   isFetching, 
   onRunAgain, 

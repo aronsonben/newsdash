@@ -1,35 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac } from 'crypto';
+import { getAdminDb } from './_lib/admin';
+import { requireUser, safeEqual } from './_lib/auth';
 
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_BROWSER_API_KEY,
-  authDomain: 'newsdash-concourse.firebaseapp.com',
-  projectId: 'newsdash-concourse',
-  storageBucket: 'newsdash-concourse.firebasestorage.app',
-  messagingSenderId: '809304184792',
-  appId: '1:809304184792:web:55f10ffc84aab0b6db04ad',
-};
-
-function getDb() {
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  return getFirestore(app);
+/** Escapes text for safe interpolation into HTML. */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
 /**
  * Verifies the HMAC-SHA256 signature attached to email unsubscribe links.
- * Uses constant-time comparison to prevent timing-based attacks.
+ * Fails closed if UNSUBSCRIBE_HMAC_SECRET is unset.
  */
 function verifyUnsubscribeToken(userId: string, sig: string): boolean {
   const secret = process.env.UNSUBSCRIBE_HMAC_SECRET;
   if (!secret) return false;
-  try {
-    const expected = createHmac('sha256', secret).update(userId).digest('hex');
-    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(sig, 'hex'));
-  } catch {
-    return false;
-  }
+  const expected = createHmac('sha256', secret).update(userId).digest('hex');
+  return safeEqual(expected, sig);
 }
 
 /**
@@ -38,14 +25,12 @@ function verifyUnsubscribeToken(userId: string, sig: string): boolean {
  *   - users/{userId}.weeklyReport = false
  */
 async function performUnsubscribe(userId: string) {
-  const db = getDb();
+  const db = getAdminDb();
   await Promise.all([
-    setDoc(doc(db, 'email_subscriptions', userId), { active: false }, { merge: true }),
-    setDoc(doc(db, 'users', userId), { weeklyReport: false }, { merge: true }),
+    db.doc(`email_subscriptions/${userId}`).set({ active: false }, { merge: true }),
+    db.doc(`users/${userId}`).set({ weeklyReport: false }, { merge: true }),
   ]);
 }
-
-// ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── GET: one-click unsubscribe from email link (HMAC-signed) ─────────────
@@ -72,14 +57,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── POST: unsubscribe triggered from the Account modal UI ────────────────
   if (req.method === 'POST') {
-    const { userId } = req.body ?? {};
-
-    if (!userId || typeof userId !== 'string') {
-      return res.status(400).json({ error: '`userId` is required' });
-    }
+    const user = await requireUser(req, res);
+    if (!user) return;
 
     try {
-      await performUnsubscribe(userId);
+      await performUnsubscribe(user.uid);
       return res.status(200).json({ success: true });
     } catch (err) {
       console.error('[unsubscribe] Firestore error:', err);
@@ -98,7 +80,7 @@ function confirmationPage(title: string, message: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${title} — NewsDash</title>
+  <title>${escapeHtml(title)} — NewsDash</title>
   <style>
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
            background: #f3f4f6; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
@@ -112,9 +94,9 @@ function confirmationPage(title: string, message: string): string {
 </head>
 <body>
   <div class="card">
-    <h1>${title}</h1>
-    <p>${message}</p>
-    <a href="${process.env.APP_URL ?? '/'}">← Back to NewsDash</a>
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(message)}</p>
+    <a href="${escapeHtml(process.env.APP_URL ?? '/')}">← Back to NewsDash</a>
   </div>
 </body>
 </html>`;

@@ -5,7 +5,7 @@ dist
 newsdash.code-workspace
 .DS_Store
 
-newsdash-concourse-1346d2a7aa82.json
+newsdash-concourse-*.json
 audit-report-*.txt
 sample_response.md
 

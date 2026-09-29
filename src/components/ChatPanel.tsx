@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { hasReachedDailyLimit, getUsageInfo } from '../lib/usageTracker';
-import { CacheData, Shortcut } from 'src/types';
-import { Timestamp } from 'firebase/firestore';
+import { Shortcut } from 'src/types';
 
 interface ChatPanelProps { 
     shortcut: Shortcut,

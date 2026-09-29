@@ -1,22 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHmac } from 'crypto';
 import { GoogleGenAI } from '@google/genai';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { Resend } from 'resend';
+import { getAdminDb } from './_lib/admin';
+import { requireCron } from './_lib/auth';
 
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_BROWSER_API_KEY,
-  authDomain: 'newsdash-concourse.firebaseapp.com',
-  projectId: 'newsdash-concourse',
-  storageBucket: 'newsdash-concourse.firebasestorage.app',
-  messagingSenderId: '809304184792',
-  appId: '1:809304184792:web:55f10ffc84aab0b6db04ad',
-};
-
-function getDb() {
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  return getFirestore(app);
+/** Escapes text for safe interpolation into HTML. */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
 // ─── Shortcut metadata ────────────────────────────────────────────────────────
@@ -107,7 +98,7 @@ async function summarizeWithLLM(textWithCitations: string, shortcutName: string)
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash',
       contents: `Summarize the following ${shortcutName} report:\n\n${textWithCitations}`,
       config: { systemInstruction: CLIMATE_NEWS_SYSTEM_INSTRUCTION },
     });
@@ -131,7 +122,8 @@ async function summarizeWithLLM(textWithCitations: string, shortcutName: string)
  * unsubscribe links embedded in outbound emails.
  */
 function generateUnsubscribeToken(userId: string): string {
-  const secret = process.env.UNSUBSCRIBE_HMAC_SECRET ?? '';
+  const secret = process.env.UNSUBSCRIBE_HMAC_SECRET;
+  if (!secret) throw new Error('UNSUBSCRIBE_HMAC_SECRET is not configured on the server.');
   return createHmac('sha256', secret).update(userId).digest('hex');
 }
 
@@ -148,14 +140,14 @@ function buildEmailHtml(sections: ShortcutSection[], unsubscribeUrl: string, app
   const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const logoUrl = `${appUrl}/newsdash_green.png`;
 
-  /** Renders markdown bold, italic, ordered/unordered lists, and inline links to HTML. */
+  /** Renders markdown bold, italic, ordered/unordered lists, and https-only inline links to HTML; input is HTML-escaped first. */
   const renderMarkdown = (text: string): string => {
-    const applyInline = (s: string) =>
-      s
+    const applyInline = (raw: string) =>
+      escapeHtml(raw)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/_(.+?)_/g, '<em>$1</em>')
-        .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" style="color:#8B4513;text-decoration:underline;" target="_blank" rel="noopener noreferrer">$1</a>');
+        .replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2" style="color:#8B4513;text-decoration:underline;" target="_blank" rel="noopener noreferrer">$1</a>');
 
     const lines = text.split('\n');
     const parts: string[] = [];
@@ -205,13 +197,13 @@ function buildEmailHtml(sections: ShortcutSection[], unsubscribeUrl: string, app
               <img src="${appUrl}${icon}" alt="" height="18" style="display:block;border-radius:3px;height:18px;width:auto;">
             </td>
             <td style="vertical-align:middle;">
-              <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#8B4513;">${name}</p>
+              <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#8B4513;">${escapeHtml(name)}</p>
             </td>
           </tr>
         </table>
         <p style="margin:0;font-size:14px;line-height:1.75;color:#4A3528;">${renderMarkdown(paragraph)}</p>
         <p style="margin:8px 0 0;font-size:12px;padding-bottom:20px;${i < sections.length - 1 ? 'border-bottom:1px solid #D4C4B0;' : ''}">
-          <a href="${appUrl}" style="color:#8B4513;text-decoration:underline;" target="_blank" rel="noopener noreferrer">Click to dive deeper on ${name} &rarr;</a>
+          <a href="${appUrl}" style="color:#8B4513;text-decoration:underline;" target="_blank" rel="noopener noreferrer">Click to dive deeper on ${escapeHtml(name)} &rarr;</a>
         </p>
       </td>
     </tr>`).join('');
@@ -284,22 +276,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers['authorization'];
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return res.status(401).json({ error: 'Unauthorised' });
-  }
+  if (!requireCron(req, res)) return;
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const appUrl = process.env.NODE_ENV === 'development' ? (process.env.DEV_APP_URL ?? 'https://newsdash.concourse.codes') : (process.env.APP_URL ?? 'https://newsdash.concourse.codes');
   const fromEmail = process.env.NODE_ENV === 'development' ? (process.env.LOCAL_EMAIL_FROM ?? 'onboarding@resend.dev') : (process.env.EMAIL_FROM ?? 'onboarding@resend.dev');
 
   try {
-    const db = getDb();
+    const db = getAdminDb();
 
     // ── 1. Fetch all prompt_cache documents in parallel ──────────────────
     const cacheSnapshots = await Promise.all(
-      SHORTCUTS.map(s => getDoc(doc(db, 'prompt_cache', s.id)))
+      SHORTCUTS.map(s => db.doc(`prompt_cache/${s.id}`).get())
     );
 
     // ── 1b. Summarize each cached response with Gemini (sequential to stay within timeout) ──
@@ -308,7 +296,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const shortcut = SHORTCUTS[i];
       const snap = cacheSnapshots[i];
 
-      if (!snap.exists()) {
+      if (!snap.exists) {
         sections.push({ name: shortcut.name, icon: shortcut.icon, paragraph: 'No recent data available — open NewsDash to generate this week\'s content.' });
         continue;
       }
@@ -324,8 +312,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── 2. Fetch all active subscribers ────────────────────────────────────
-    const subsQuery = query(collection(db, 'email_subscriptions'), where('active', '==', true));
-    const subsSnapshot = await getDocs(subsQuery);
+    const subsSnapshot = await db.collection('email_subscriptions').where('active', '==', true).get();
 
     if (subsSnapshot.empty) {
       return res.status(200).json({ sent: 0, message: 'No active subscribers' });
@@ -340,7 +327,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const userId = subDoc.id;
 
       const sig = generateUnsubscribeToken(userId);
-      const unsubscribeUrl = `${appUrl}/api/unsubscribe?uid=${userId}&sig=${sig}`;
+      const unsubscribeUrl = `${appUrl}/api/unsubscribe?uid=${encodeURIComponent(userId)}&sig=${sig}`;
       const html = buildEmailHtml(sections, unsubscribeUrl, appUrl);
 
       const { error } = await resend.emails.send({

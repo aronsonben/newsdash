@@ -1,99 +1,57 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, Firestore, doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
-import { CacheData, GeminiGenerateResponse } from '../src/types';
+import { Timestamp } from 'firebase-admin/firestore';
+import { getAdminDb } from './_lib/admin';
+import { isShortcutId } from './_lib/shortcuts';
+import { serializeTimestamp } from './_lib/cache';
 
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_BROWSER_API_KEY,
-  authDomain: "newsdash-concourse.firebaseapp.com",
-  projectId: "newsdash-concourse",
-  storageBucket: "newsdash-concourse.firebasestorage.app",
-  messagingSenderId: "809304184792",
-  appId: "1:809304184792:web:55f10ffc84aab0b6db04ad"
-};
+const FRESH_TTL_MS = 24 * 60 * 60 * 1000;
 
-const app = initializeApp(firebaseConfig);
-
-// ─── TTL constants ────────────────────────────────────────────────────────────
-const FRESH_TTL_MS = 24 * 60 * 60 * 1000;      // < 24 h  → return immediately
-// ≥ 24 h → stale (still returned; no upper-bound expiry on DB reads)
-
-function getDb(): Firestore {
-  const db = getFirestore(app);
-  return db;
-}
-
-// ─── Handler ──────────────────────────────────────────────────────────────────
+/** Reads the cached response for a shortcut; age classification (fresh/stale) is left to the client to surface. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { promptId } = req.query;
-  if (!promptId || typeof promptId !== 'string') {
-    return res.status(400).json({ error: '`promptId` query parameter is required' });
+  if (!isShortcutId(promptId)) {
+    return res.status(400).json({ error: 'Unknown or missing `promptId`' });
   }
 
   try {
-    // console.log("[cache-read] Trying to read the cache.... ", );
-
-    const db = getDb();
-
-    const promptCacheRef = doc(db, 'prompt_cache', promptId);
-
-    const existing = await getDoc(promptCacheRef);
-    if (!existing.exists()) {
-      console.log('[cache-read] Prompt Cache does NOT exist for: ', promptId);
+    const snap = await getAdminDb().doc(`prompt_cache/${promptId}`).get();
+    if (!snap.exists) {
       return res.status(200).json({ status: 'miss' });
     }
 
-    // console.log("[cache-read] It exists! Continuing...");
-
-    const entry = existing.data();
-    // console.log("[cache-read] Found data from the database! ");
-
-    // console.log("[cache-read] Creating new CacheData object with text: ", entry);
-
-    // Detect schema version: new schema has a nested `data` object
-    const payload: Record<string, any> = entry.data && typeof entry.data === 'object'
-      ? entry.data   // new schema
-      : entry;       // old schema (fields at top level)
-
-    const entryData: GeminiGenerateResponse = {
-      text:               payload.text              ?? '',
-      textWithCitations:  payload.textWithCitations ?? '',
-      searchQueries:      payload.searchQueries     ?? [],
-      groundingChunks:    payload.groundingChunks   ?? [],
-      groundingSupports:  payload.groundingSupports ?? [],
-      searchEntryPoint:   payload.searchEntryPoint  ?? null,
-    }
-
-    const storedUpdatedAt: Timestamp = entry.updatedAt;
-
-    if (!storedUpdatedAt) {
+    const entry = snap.data()!;
+    const storedUpdatedAt = entry.updatedAt;
+    if (!(storedUpdatedAt instanceof Timestamp)) {
       return res.status(200).json({ status: 'miss' });
     }
 
+    // Old schema kept fields at the top level; new schema nests them under `data`.
+    const payload: Record<string, any> = entry.data && typeof entry.data === 'object' ? entry.data : entry;
     const ageMs = Date.now() - storedUpdatedAt.toMillis();
+    const updatedAt = serializeTimestamp(storedUpdatedAt);
 
-    // Always return the last known entry regardless of age.
-    // fresh = < 24 h, stale = ≥ 24 h. The client decides how to surface the age.
-    const status = ageMs < FRESH_TTL_MS ? 'fresh' : 'stale';
-
-    const existingPromptData: CacheData = {
-      id: promptId,
-      data: entryData,
-      updatedAt: storedUpdatedAt,
-      ...(entry.savedBy && typeof entry.savedBy === 'string' ? { savedBy: entry.savedBy } : {}),
-    };
-
-    // console.log("[cache-read] Found the existingPromptData:  ", existingPromptData);
-    
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
     return res.status(200).json({
-      status,
-      updatedAt: storedUpdatedAt,
+      status: ageMs < FRESH_TTL_MS ? 'fresh' : 'stale',
+      updatedAt,
       ageMs,
-      data: existingPromptData,
+      data: {
+        id: promptId,
+        data: {
+          text: payload.text ?? '',
+          textWithCitations: payload.textWithCitations ?? '',
+          searchQueries: payload.searchQueries ?? [],
+          groundingChunks: payload.groundingChunks ?? [],
+          groundingSupports: payload.groundingSupports ?? [],
+          searchEntryPoint: payload.searchEntryPoint ?? null,
+        },
+        updatedAt,
+        ...(typeof entry.savedBy === 'string' ? { savedBy: entry.savedBy } : {}),
+      },
     });
   } catch (err) {
     console.error('[cache-read] Firestore error:', err);

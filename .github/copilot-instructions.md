@@ -4,7 +4,7 @@ applyTo: "**"
 # Instructions & Workspace Context
 
 **Project Title:** NewsDash
-**Summary of Purpose:** Use LLMs to fetch the latest climate news across five pre-set prompts.
+**Summary of Purpose:** Use LLMs to fetch the latest climate news across a set of pre-defined prompts.
 
 ## Tech Stack
 - React.js
@@ -12,7 +12,7 @@ applyTo: "**"
 - Tailwind CSS v4
 - Google Gemini (for LLM)
 - Firestore (for database)
-- Vercel (for deployment & hosting)
+- Vercel (for deployment, hosting & serverless functions)
 
 ## Folder Structure
 ```
@@ -20,7 +20,7 @@ src/
   App.tsx         - Core app react component
   components/     - Mostly UI React components
   lib/            - External client managers, etc.
-  services/       - useLocalStorage hook
+  services/       - custom-built hooks
 api/              - Vercel-readable serverless functions
 ```
 
